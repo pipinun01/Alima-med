@@ -1,0 +1,252 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+@custom-variant rose (&:where([data-theme="rose"], [data-theme="rose"] *));
+
+@theme {
+  --font-sans:    "Onest", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Unbounded", "Onest", ui-sans-serif, system-ui, sans-serif;
+  --font-read:    "Literata", Georgia, ui-serif, serif;
+
+  --radius-card: 1.125rem;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ТЕМЫ — белая / тёмная / розовая
+   ══════════════════════════════════════════════════════════════════════════ */
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg:          #ffffff;
+  --bg-deep:     #f6f7f9;
+  --bg-card:     #ffffff;
+  --bg-subtle:   #f4f5f7;
+  --bg-hover:    #eef0f3;
+  --fg:          #0c0e12;
+  --fg-soft:     #565e6b;
+  --fg-faint:    #98a0ac;
+  --line:        #e6e8ec;
+  --line-strong: #d3d7dd;
+
+  --accent:      #0f766e;
+  --accent-soft: #e6f4f2;
+  --accent-fg:   #ffffff;
+  --accent-glow: 15 118 110;
+
+  --grad: linear-gradient(135deg, #0f766e 0%, #14919b 55%, #1f9ea8 100%);
+  --halo: radial-gradient(60rem 30rem at 50% -8rem, rgb(15 118 110 / 0.10), transparent 70%);
+
+  --shadow-sm: 0 1px 2px rgb(12 14 18 / 0.05);
+  --shadow-md: 0 1px 2px rgb(12 14 18 / 0.04), 0 10px 28px -14px rgb(12 14 18 / 0.16);
+  --shadow-lg: 0 2px 4px rgb(12 14 18 / 0.04), 0 24px 60px -24px rgb(12 14 18 / 0.24);
+
+  --term-red-bg:   #fef0f0;  --term-red-fg:   #b3261e;  --term-red-line:   #f0c4c1;
+  --term-green-bg: #edf8f0;  --term-green-fg: #146c3a;  --term-green-line: #bde0c8;
+  --term-gold-bg:  #fdf5e3;  --term-gold-fg:  #94620a;  --term-gold-line:  #e9d3a0;
+  --bloom-1: #f9a8d4;
+  --bloom-2: #f0abfc;
+  --bloom-3: #a5b4fc;
+  --bloom-leaf: #86efac;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg:          #0b0d10;
+  --bg-deep:     #07090b;
+  --bg-card:     #14171c;
+  --bg-subtle:   #1a1e24;
+  --bg-hover:    #222730;
+  --fg:          #eef1f5;
+  --fg-soft:     #a3adba;
+  --fg-faint:    #6b7482;
+  --line:        #242a31;
+  --line-strong: #333b47;
+
+  --accent:      #2dd4bf;
+  --accent-soft: #10312e;
+  --accent-fg:   #04211d;
+  --accent-glow: 45 212 191;
+
+  --grad: linear-gradient(135deg, #2dd4bf 0%, #38bdf8 60%, #818cf8 100%);
+  --halo: radial-gradient(60rem 30rem at 50% -8rem, rgb(45 212 191 / 0.13), transparent 70%);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -16px rgb(0 0 0 / 0.8);
+  --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.5), 0 28px 64px -28px rgb(0 0 0 / 0.9);
+
+  --term-red-bg:   #2c1517;  --term-red-fg:   #f5a3a0;  --term-red-line:   #4a2326;
+  --term-green-bg: #10281a;  --term-green-fg: #8fd9ab;  --term-green-line: #1e4530;
+  --term-gold-bg:  #292112;  --term-gold-fg:  #e8c579;  --term-gold-line:  #473a1b;
+  --bloom-1: #7d3f61;
+  --bloom-2: #5c3a72;
+  --bloom-3: #34507a;
+  --bloom-leaf: #2f6b4a;
+}
+
+[data-theme="rose"] {
+  color-scheme: light;
+  --bg:          #fff6f9;
+  --bg-deep:     #ffeef4;
+  --bg-card:     #ffffff;
+  --bg-subtle:   #fdeef3;
+  --bg-hover:    #fbe2eb;
+  --fg:          #2a1020;
+  --fg-soft:     #7c5468;
+  --fg-faint:    #b18ba0;
+  --line:        #f6dbe5;
+  --line-strong: #eec3d4;
+
+  --accent:      #d6336c;
+  --accent-soft: #ffe6ef;
+  --accent-fg:   #ffffff;
+  --accent-glow: 214 51 108;
+
+  --grad: linear-gradient(135deg, #d6336c 0%, #f06595 52%, #cc5de8 100%);
+  --halo: radial-gradient(60rem 30rem at 50% -8rem, rgb(240 101 149 / 0.22), transparent 70%);
+
+  --shadow-sm: 0 1px 2px rgb(120 20 60 / 0.06);
+  --shadow-md: 0 1px 2px rgb(120 20 60 / 0.05), 0 10px 30px -14px rgb(150 30 80 / 0.25);
+  --shadow-lg: 0 2px 6px rgb(120 20 60 / 0.06), 0 26px 64px -26px rgb(150 30 80 / 0.34);
+
+  --term-red-bg:   #ffeceb;  --term-red-fg:   #b3261e;  --term-red-line:   #f5c6c2;
+  --term-green-bg: #e9f8ee;  --term-green-fg: #12693a;  --term-green-line: #bbe2c9;
+  --term-gold-bg:  #fdf3e0;  --term-gold-fg:  #92600a;  --term-gold-line:  #ecd3a1;
+  --bloom-1: #f9a8d4;
+  --bloom-2: #f472b6;
+  --bloom-3: #e879f9;
+  --bloom-leaf: #9be3b4;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+html, body, #root { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv01";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+  transition: background-color 0.3s var(--ease-out-soft), color 0.3s var(--ease-out-soft);
+}
+
+::selection { background: rgb(var(--accent-glow) / 0.22); }
+
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Термины с цветными метками ─────────────────────────────────────────── */
+.term {
+  border-radius: 0.35em;
+  padding: 0.06em 0.3em;
+  border-bottom: 1.5px solid;
+  font-weight: 500;
+  cursor: help;
+  transition: filter 0.14s var(--ease-out-soft);
+}
+.term:hover { filter: brightness(0.97) saturate(1.2); }
+.term[data-color="red"]   { background: var(--term-red-bg);   color: var(--term-red-fg);   border-color: var(--term-red-line); }
+.term[data-color="green"] { background: var(--term-green-bg); color: var(--term-green-fg); border-color: var(--term-green-line); }
+.term[data-color="gold"]  { background: var(--term-gold-bg);  color: var(--term-gold-fg);  border-color: var(--term-gold-line); }
+
+/* ─── Текст конспекта ────────────────────────────────────────────────────── */
+.prose-note {
+  font-family: var(--font-read);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  --tw-prose-body: var(--fg);
+  --tw-prose-headings: var(--fg);
+  --tw-prose-bold: var(--fg);
+  --tw-prose-quotes: var(--fg-soft);
+  --tw-prose-bullets: var(--accent);
+  --tw-prose-counters: var(--fg-faint);
+  --tw-prose-hr: var(--line);
+  --tw-prose-quote-borders: var(--accent);
+  --tw-prose-links: var(--accent);
+  --tw-prose-code: var(--fg);
+  --tw-prose-th-borders: var(--line);
+  --tw-prose-td-borders: var(--line);
+}
+.prose-note :where(h1, h2, h3, h4) { font-family: var(--font-sans); font-weight: 650; letter-spacing: -0.015em; }
+.prose-note :where(img) {
+  border-radius: 0.9rem;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-md);
+  cursor: zoom-in;
+  margin-inline: auto;
+}
+.prose-note :where(blockquote) {
+  font-style: normal;
+  background: var(--bg-subtle);
+  border-radius: 0 0.6rem 0.6rem 0;
+  padding: 0.85rem 1.1rem;
+}
+.prose-note :where(code) {
+  background: var(--bg-subtle);
+  padding: 0.15em 0.4em;
+  border-radius: 0.35em;
+  font-size: 0.9em;
+}
+.prose-note :where(code)::before, .prose-note :where(code)::after { content: none; }
+.prose-note :where(table) { display: block; overflow-x: auto; white-space: nowrap; }
+
+/* ─── Редактор ───────────────────────────────────────────────────────────── */
+.ProseMirror { outline: none; }
+.ProseMirror[contenteditable="true"] { min-height: 14rem; }
+/* В режиме чтения абзацы редактора не должны добавлять лишние поля */
+.prose-note .ProseMirror > :first-child { margin-top: 0; }
+.prose-note .ProseMirror > :last-child { margin-bottom: 0; }
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--fg-faint);
+}
+
+/* ─── Утилиты ────────────────────────────────────────────────────────────── */
+.scrollbar-slim::-webkit-scrollbar { width: 7px; height: 7px; }
+.scrollbar-slim::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--fg-faint) 40%, transparent);
+  border-radius: 99px;
+}
+.scrollbar-slim::-webkit-scrollbar-track { background: transparent; }
+
+.glass {
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+
+.text-grad {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-fade-up { animation: fade-up 0.28s var(--ease-out-soft) both; }
+.animate-pop-in  { animation: pop-in 0.2s var(--ease-out-soft) both; }
