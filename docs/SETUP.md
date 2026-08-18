@@ -165,8 +165,21 @@ delete from editors where user_id = 'UID';
 `index.html`. В репозитории для этого лежит `vercel.json`. Если разворачиваете
 где-то ещё — настройте тот же fallback.
 
-После деплоя добавьте адрес сайта в Supabase: **Authentication → URL
-Configuration → Site URL** и в **Redirect URLs**.
+### Адрес сайта в Supabase
+
+Строго говоря, для входа это не нужно: приложение логинится по почте и паролю,
+а такой вход обходится без перенаправлений. Но задать стоит сразу — значение по
+умолчанию `http://localhost:3000`, и как только появятся письма (сброс пароля,
+подтверждение почты), ссылки в них поведут в никуда.
+
+**Authentication → URL Configuration**:
+
+- **Site URL** — адрес сайта, например `https://alima-med.vercel.app`
+- **Redirect URLs** — добавить два шаблона:
+  - `https://alima-med.vercel.app/**`
+  - `http://localhost:5173/**` — чтобы то же работало при локальной разработке
+
+`**` подставляет любой путь — это синтаксис Supabase.
 
 ---
 

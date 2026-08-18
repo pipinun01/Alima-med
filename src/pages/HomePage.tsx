@@ -80,7 +80,7 @@ export function HomePage() {
           {roots[0] && (
             <Button onClick={() => navigate(`/n/${roots[0].id}`)}>
               <Library size={16} />
-              Открыть {roots[0].title}
+              Открыть «{roots[0].title}»
             </Button>
           )}
           <Button
