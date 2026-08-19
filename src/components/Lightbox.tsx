@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 export function Lightbox({ src, onClose }: { src: string | null; onClose: () => void }) {
@@ -16,7 +17,7 @@ export function Lightbox({ src, onClose }: { src: string | null; onClose: () => 
 
   if (!src) return null
 
-  return (
+  return createPortal(
     <div
       className="animate-fade-up fixed inset-0 z-70 flex items-center justify-center bg-black/88 p-4"
       onClick={onClose}
@@ -38,6 +39,7 @@ export function Lightbox({ src, onClose }: { src: string | null; onClose: () => 
         className="max-h-full max-w-full rounded-xl object-contain shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       />
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -138,7 +138,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[3px] animate-fade-up" onClick={onClose} />
 
       <div
-        className="animate-pop-in relative flex w-full max-w-2xl flex-col overflow-hidden
+        className="app-zoom animate-pop-in relative flex w-full max-w-2xl flex-col overflow-hidden
           rounded-3xl border border-[var(--line)] bg-[var(--bg-card)] shadow-[var(--shadow-lg)]"
         onKeyDown={onKeyDown}
       >
@@ -162,7 +162,11 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
           </button>
         </div>
 
-        <div ref={listRef} className="max-h-[60vh] overflow-y-auto scrollbar-slim p-2">
+        <div
+          ref={listRef}
+          className="overflow-y-auto scrollbar-slim p-2"
+          style={{ maxHeight: 'calc(60vh / var(--app-zoom))' }}
+        >
           {query.trim().length < 2 ? (
             <p className="px-3 py-8 text-center text-sm text-[var(--fg-faint)]">
               Введите минимум два символа — поиск идёт и по названиям, и по тексту конспектов

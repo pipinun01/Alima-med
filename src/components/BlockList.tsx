@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, Pencil, Plus, Trash2 } from 'lucide-react'
+import {
+  ChevronDown, ChevronRight, ChevronUp, ChevronsDownUp, ChevronsUpDown, Pencil, Plus, Trash2,
+} from 'lucide-react'
 import * as api from '@/lib/api'
 import { contentToText } from '@/lib/editor'
 import { TERM_LABELS, type Block, type TermColor } from '@/lib/types'
@@ -9,6 +11,31 @@ import { NoteEditor } from './NoteEditor'
 import { Button, IconButton, Modal, Spinner } from './ui'
 
 const COLORS = Object.keys(TERM_LABELS) as TermColor[]
+
+/** «Открывать карточку свёрнутой» — выбор этого устройства, помним между заходами */
+const COLLAPSE_PREF = 'lichnoe-info-blocks-collapsed'
+
+const readCollapsePref = () => {
+  try {
+    return localStorage.getItem(COLLAPSE_PREF) === '1'
+  } catch {
+    return false
+  }
+}
+
+const writeCollapsePref = (v: boolean) => {
+  try {
+    localStorage.setItem(COLLAPSE_PREF, v ? '1' : '0')
+  } catch {
+    /* приватный режим */
+  }
+}
+
+/** Первая строка блока — чтобы в свёрнутом виде было понятно, что внутри */
+function previewOf(block: Block) {
+  const line = (block.content_text ?? '').split('\n').map((l) => l.trim()).find(Boolean) ?? ''
+  return line.length > 90 ? `${line.slice(0, 90)}…` : line
+}
 
 /** Цветная метка блока — то, что не даёт спутать термины между собой */
 export function BlockChip({ label, color }: { label: string; color: TermColor }) {
@@ -158,6 +185,7 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     let active = true
@@ -165,13 +193,36 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
     setEditingId(null)
     api
       .fetchBlocks(nodeId)
-      .then((data) => active && setBlocks(data))
+      .then((data) => {
+        if (!active) return
+        setBlocks(data)
+        // Если выбрано «открывать свёрнутыми» — прячем всё, кроме единственного блока
+        setCollapsed(
+          readCollapsePref() && data.length > 1 ? new Set(data.map((b) => b.id)) : new Set(),
+        )
+      })
       .catch(() => active && setBlocks([]))
       .finally(() => active && setLoading(false))
     return () => {
       active = false
     }
   }, [nodeId])
+
+  const toggle = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const allCollapsed = blocks.length > 0 && blocks.every((b) => collapsed.has(b.id))
+
+  const toggleAll = () => {
+    haptic.tap()
+    setCollapsed(allCollapsed ? new Set() : new Set(blocks.map((b) => b.id)))
+    writeCollapsePref(!allCollapsed)
+  }
 
   const addBlock = useCallback(async () => {
     setAdding(true)
@@ -227,6 +278,15 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
 
   return (
     <div className="space-y-4">
+      {blocks.length > 1 && (
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" onClick={toggleAll}>
+            {allCollapsed ? <ChevronsUpDown size={15} /> : <ChevronsDownUp size={15} />}
+            {allCollapsed ? 'Развернуть всё' : 'Свернуть всё'}
+          </Button>
+        </div>
+      )}
+
       {blocks.map((block, index) =>
         editingId === block.id ? (
           <BlockEditorCard
@@ -245,14 +305,41 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
         ) : (
           <article
             key={block.id}
-            className="animate-fade-up rounded-[var(--radius-card)] border border-[var(--line)]
-              bg-[var(--bg-card)] p-4 shadow-[var(--shadow-sm)] sm:p-6"
+            className={`animate-fade-up rounded-[var(--radius-card)] border border-[var(--line)]
+              bg-[var(--bg-card)] shadow-[var(--shadow-sm)] ${
+                collapsed.has(block.id) ? 'px-4 py-3 sm:px-6 sm:py-4' : 'p-4 sm:p-6'
+              }`}
             style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
           >
-            <div className="mb-3 flex items-start gap-2">
-              <BlockChip label={block.label} color={block.color} />
+            <div className={`flex items-start gap-2 ${collapsed.has(block.id) ? '' : 'mb-3'}`}>
+              {/* Вся строка с меткой — переключатель: нажали, блок раскрылся */}
+              <button
+                type="button"
+                onClick={() => {
+                  haptic.tap()
+                  toggle(block.id)
+                }}
+                aria-expanded={!collapsed.has(block.id)}
+                aria-label={collapsed.has(block.id) ? 'Развернуть блок' : 'Свернуть блок'}
+                className="-my-1 -ml-1 flex min-w-0 flex-1 items-start gap-2 rounded-xl px-1 py-1
+                  text-left transition-colors hover:bg-[var(--bg-subtle)]"
+              >
+                <ChevronRight
+                  size={16}
+                  className="mt-0.5 shrink-0 text-[var(--fg-faint)] transition-transform duration-200"
+                  style={{ transform: collapsed.has(block.id) ? 'none' : 'rotate(90deg)' }}
+                />
+                <span className="min-w-0 flex-1">
+                  <BlockChip label={block.label || 'Без метки'} color={block.color} />
+                  {collapsed.has(block.id) && previewOf(block) && (
+                    <span className="mt-1 block truncate text-[13px] text-[var(--fg-faint)]">
+                      {previewOf(block)}
+                    </span>
+                  )}
+                </span>
+              </button>
               {canEdit && (
-                <div className="ml-auto flex shrink-0 items-center gap-0.5">
+                <div className="flex shrink-0 items-center gap-0.5">
                   <IconButton label="Выше" disabled={index === 0} onClick={() => void move(block.id, -1)}>
                     <ChevronUp size={16} />
                   </IconButton>
@@ -263,13 +350,24 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
                   >
                     <ChevronDown size={16} />
                   </IconButton>
-                  <IconButton label="Редактировать блок" onClick={() => setEditingId(block.id)}>
+                  <IconButton
+                    label="Редактировать блок"
+                    onClick={() => {
+                      // Правим только развёрнутый блок — иначе текст не виден
+                      setCollapsed((prev) => {
+                        const next = new Set(prev)
+                        next.delete(block.id)
+                        return next
+                      })
+                      setEditingId(block.id)
+                    }}
+                  >
                     <Pencil size={15} />
                   </IconButton>
                 </div>
               )}
             </div>
-            <NoteView content={block.content} />
+            {!collapsed.has(block.id) && <NoteView content={block.content} />}
           </article>
         ),
       )}

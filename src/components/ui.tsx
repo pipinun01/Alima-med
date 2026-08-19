@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 type Variant = 'primary' | 'ghost' | 'soft' | 'danger' | 'outline'
@@ -120,7 +121,8 @@ export function Modal({
 
   if (!open) return null
 
-  return (
+  // Портал в body: окно не должно зависеть от масштаба и сдвигов родителя
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4"
       role="dialog"
@@ -133,10 +135,12 @@ export function Modal({
       />
       <div
         ref={ref}
-        className={`animate-pop-in relative w-full ${width} rounded-t-3xl sm:rounded-3xl
+        className={`app-zoom animate-pop-in relative w-full ${width} rounded-t-3xl sm:rounded-3xl
           border border-[var(--line)] bg-[var(--bg-card)] shadow-[var(--shadow-lg)]
-          max-h-[92vh] overflow-y-auto scrollbar-slim
+          overflow-y-auto scrollbar-slim
           pb-[max(1.25rem,env(safe-area-inset-bottom))]`}
+        /* Высота делится на масштаб: при крупном шрифте окно не вылезает за экран */
+        style={{ maxHeight: 'calc(92vh / var(--app-zoom))' }}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-[var(--line)] bg-[var(--bg-card)] px-5 py-4">
           <h2 className="font-display text-[17px] font-semibold tracking-tight">{title}</h2>
@@ -146,7 +150,8 @@ export function Modal({
         </div>
         <div className="px-5 py-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

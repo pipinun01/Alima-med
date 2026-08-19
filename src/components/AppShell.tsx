@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LogIn, LogOut, Menu, Palette, PenLine, Search, X } from 'lucide-react'
+import { LogIn, LogOut, Menu, PenLine, Search, Settings2, X } from 'lucide-react'
 import { Logo } from './Logo'
 import { Sidebar } from './Sidebar'
 import { SearchPalette } from './SearchPalette'
@@ -9,14 +9,14 @@ import { IconButton } from './ui'
 import { useAuth } from '@/context/AuthContext'
 import { inTelegram } from '@/lib/telegram'
 import { SearchContext } from '@/context/SearchContext'
-import { AppearanceModal } from './AppearanceModal'
+import { SettingsModal } from './SettingsModal'
 import { BackgroundLayer } from './BackgroundLayer'
 import { useSettings } from '@/context/SettingsContext'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawer, setDrawer] = useState(false)
   const [search, setSearch] = useState(false)
-  const [appearance, setAppearance] = useState(false)
+  const [settings, setSettings] = useState(false)
   const { session, isEditor, signOut } = useAuth()
   const { effective } = useSettings()
   const location = useLocation()
@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className="glass sticky top-0 z-40 border-b border-[var(--line)]"
         style={{ paddingTop: inTelegram() ? 'env(safe-area-inset-top)' : undefined }}
       >
-        <div className="mx-auto flex h-15 max-w-[1400px] items-center gap-2 px-3 py-3 sm:px-5">
+        <div className="app-zoom mx-auto flex h-15 max-w-[1400px] items-center gap-2 px-3 py-3 sm:px-5">
           <IconButton label="Меню" className="lg:hidden" onClick={() => setDrawer(true)}>
             <Menu size={19} />
           </IconButton>
@@ -84,8 +84,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </kbd>
           </button>
 
-          <IconButton label="Оформление" onClick={() => setAppearance(true)}>
-            <Palette size={18} />
+          <IconButton label="Настройки" onClick={() => setSettings(true)}>
+            <Settings2 size={18} />
           </IconButton>
 
           {isEditor && (
@@ -112,13 +112,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="mx-auto flex max-w-[1400px] items-start">
         <aside
-          className="sticky top-15 hidden h-[calc(100dvh-3.75rem)] w-72 shrink-0 overflow-y-auto
+          className="app-zoom sticky top-15 hidden w-72 shrink-0 overflow-y-auto
             scrollbar-slim border-r border-[var(--line)] py-3 lg:block"
+          style={{ height: 'calc((100dvh - 3.75rem * var(--app-zoom)) / var(--app-zoom))' }}
         >
           <Sidebar />
         </aside>
 
-        <main className="min-w-0 flex-1 pb-24">
+        <main className="app-zoom min-w-0 flex-1 pb-24">
           <SearchContext.Provider value={searchApi}>{children}</SearchContext.Provider>
         </main>
       </div>
@@ -128,7 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-label="Навигация">
           <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px] animate-fade-up" onClick={() => setDrawer(false)} />
           <div
-            className="animate-fade-up absolute inset-y-0 left-0 flex w-[86%] max-w-sm flex-col
+            className="app-zoom animate-fade-up absolute inset-y-0 left-0 flex w-[86%] max-w-sm flex-col
               border-r border-[var(--line)] bg-[var(--bg-card)] shadow-[var(--shadow-lg)]"
           >
             <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
@@ -151,7 +152,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       <SearchPalette open={search} onClose={() => setSearch(false)} />
-      <AppearanceModal open={appearance} onClose={() => setAppearance(false)} />
+      <SettingsModal open={settings} onClose={() => setSettings(false)} />
     </div>
   )
 }
