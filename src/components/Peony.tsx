@@ -1,3 +1,5 @@
+import { useId } from 'react'
+
 /**
  * Стилизованный пион: несколько колец широких округлых лепестков вокруг
  * сердцевины. Рисуется вектором — не грузит страницу и красив на любом экране.
@@ -15,8 +17,6 @@ const RINGS = [
   { count: 5, scale: 0.25, opacity: 0.46, offset: 14, fill: 'var(--bloom-3)' },
 ]
 
-let uid = 0
-
 export function Peony({
   size = 320,
   className = '',
@@ -26,7 +26,7 @@ export function Peony({
   className?: string
   style?: React.CSSProperties
 }) {
-  const gradientId = `peony-core-${(uid += 1)}`
+  const gradientId = `peony-core-${useId()}`
 
   return (
     <svg

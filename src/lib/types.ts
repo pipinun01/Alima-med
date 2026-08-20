@@ -41,6 +41,8 @@ export interface SearchHit {
   kind: NodeKind
   path: string | null
   label: string | null
+  /** Цвет метки блока, если совпало в блоке (старая search_all его не отдаёт) */
+  color?: TermColor | null
   snippet: string | null
   rank: number
 }
@@ -54,9 +56,6 @@ export const KIND_META: Record<
   branch:  { one: 'ветка',    few: 'ветки',    many: 'веток',     child: 'card',   childLabel: 'Карточка' },
   card:    { one: 'карточка', few: 'карточки', many: 'карточек',  child: null,     childLabel: '' },
 }
-
-/** Уровень по умолчанию для новой записи на данной глубине */
-export const KIND_BY_DEPTH: NodeKind[] = ['chapter', 'topic', 'branch', 'card']
 
 export const TERM_LABELS: Record<TermColor, { name: string; hint: string }> = {
   red:   { name: 'Красный', hint: 'Важное / патология / не перепутать' },

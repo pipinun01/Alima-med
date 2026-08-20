@@ -1,17 +1,46 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LogIn, LogOut, Menu, PenLine, Search, Settings2, X } from 'lucide-react'
+import { LogIn, LogOut, Menu, PenLine, Search, Settings2, TriangleAlert, X } from 'lucide-react'
 import { Logo } from './Logo'
 import { Sidebar } from './Sidebar'
 import { SearchPalette } from './SearchPalette'
 import { ThemeSwitcher } from './ThemeSwitcher'
-import { IconButton } from './ui'
+import { ErrorBoundary } from './ErrorBoundary'
+import { Button, IconButton } from './ui'
 import { useAuth } from '@/context/AuthContext'
+import { useTree } from '@/context/TreeContext'
 import { inTelegram } from '@/lib/telegram'
 import { SearchContext } from '@/context/SearchContext'
 import { SettingsModal } from './SettingsModal'
 import { BackgroundLayer } from './BackgroundLayer'
 import { useSettings } from '@/context/SettingsContext'
+
+/** Полоска под шапкой: дерево не загрузилось или правка не записалась */
+function StatusBar() {
+  const { error, notice, reload, dismissNotice } = useTree()
+  const message = error ? `Не удалось загрузить дерево: ${error}` : notice
+  if (!message) return null
+  return (
+    <div
+      role="alert"
+      className="app-zoom mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5
+        text-[13.5px] text-[var(--danger)] sm:px-5"
+      style={{ background: 'var(--danger-soft)' }}
+    >
+      <TriangleAlert size={15} className="shrink-0" />
+      <span className="min-w-0 flex-1">{message}</span>
+      {error ? (
+        <Button size="sm" variant="outline" onClick={() => void reload()}>
+          Повторить
+        </Button>
+      ) : (
+        <IconButton label="Скрыть" className="h-7 w-7" onClick={dismissNotice}>
+          <X size={15} />
+        </IconButton>
+      )}
+    </div>
+  )
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawer, setDrawer] = useState(false)
@@ -32,9 +61,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         e.preventDefault()
         setSearch(true)
       }
-      if (e.key === '/' && !/^(INPUT|TEXTAREA)$/.test((e.target as HTMLElement)?.tagName)) {
+      if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName)) {
         const editing = (e.target as HTMLElement)?.closest?.('.ProseMirror')
-        if (!editing) {
+        // Поверх открытого окна поиск не открываем
+        const dialogOpen = document.querySelector('[role="dialog"]')
+        if (!editing && !dialogOpen) {
           e.preventDefault()
           setSearch(true)
         }
@@ -110,6 +141,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
+      <StatusBar />
+
       <div className="mx-auto flex max-w-[1400px] items-start">
         <aside
           className="app-zoom sticky top-15 hidden w-72 shrink-0 overflow-y-auto
@@ -120,7 +153,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         <main className="app-zoom min-w-0 flex-1 pb-24">
-          <SearchContext.Provider value={searchApi}>{children}</SearchContext.Provider>
+          <SearchContext.Provider value={searchApi}>
+            <ErrorBoundary title="Страница не отрисовалась" className="m-4 sm:m-8">
+              {children}
+            </ErrorBoundary>
+          </SearchContext.Provider>
         </main>
       </div>
 

@@ -1,16 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import {
-  ChevronDown, ChevronRight, ChevronUp, ChevronsDownUp, ChevronsUpDown, Pencil, Plus, Trash2,
+  ChevronDown, ChevronRight, ChevronUp, ChevronsDownUp, ChevronsUpDown, Pencil, Plus,
 } from 'lucide-react'
 import * as api from '@/lib/api'
-import { contentToText } from '@/lib/editor'
-import { TERM_LABELS, type Block, type TermColor } from '@/lib/types'
+import { clearDraft, draftKey } from '@/lib/drafts'
+import { onDataUpdated } from '@/lib/sw-client'
+import type { Block, TermColor } from '@/lib/types'
 import { haptic } from '@/lib/telegram'
 import { NoteView } from './NoteView'
-import { NoteEditor } from './NoteEditor'
-import { Button, IconButton, Modal, Spinner } from './ui'
+import { ErrorBoundary } from './ErrorBoundary'
+import { Button, ErrorNote, IconButton, Modal, Spinner } from './ui'
 
-const COLORS = Object.keys(TERM_LABELS) as TermColor[]
+/** Редактор тянет TipTap — почти половину кода приложения. Читателям он не нужен, грузим по клику. */
+const BlockEditorCard = lazy(() => import('./BlockEditor'))
 
 /** «Открывать карточку свёрнутой» — выбор этого устройства, помним между заходами */
 const COLLAPSE_PREF = 'lichnoe-info-blocks-collapsed'
@@ -50,163 +52,73 @@ export function BlockChip({ label, color }: { label: string; color: TermColor })
   )
 }
 
-function ColorPicker({
-  value,
-  onChange,
-}: {
-  value: TermColor
-  onChange: (c: TermColor) => void
-}) {
+function EditorSkeleton() {
   return (
-    <div className="flex gap-1.5" role="radiogroup" aria-label="Цвет метки">
-      {COLORS.map((color) => (
-        <button
-          key={color}
-          type="button"
-          role="radio"
-          aria-checked={value === color}
-          title={`${TERM_LABELS[color].name} — ${TERM_LABELS[color].hint}`}
-          onClick={() => {
-            haptic.tap()
-            onChange(color)
-          }}
-          className={`term h-9 rounded-lg px-3 text-[12px] font-semibold uppercase tracking-wide
-            transition-transform duration-150
-            ${value === color ? 'scale-100 ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--bg)]' : 'scale-95 opacity-70 hover:opacity-100'}`}
-          data-color={color}
-        >
-          {TERM_LABELS[color].name}
-        </button>
-      ))}
+    <div className="rounded-[var(--radius-card)] border border-[var(--accent)] p-5">
+      <p className="flex items-center gap-2 text-[13.5px] text-[var(--fg-soft)]">
+        <Spinner />
+        Открываю редактор…
+      </p>
     </div>
   )
 }
 
-function BlockEditorCard({
-  block,
-  onSaved,
-  onCancel,
-  onDeleted,
-}: {
-  block: Block
-  onSaved: (b: Block) => void
-  onCancel: () => void
-  onDeleted: (id: string) => void
-}) {
-  const [label, setLabel] = useState(block.label)
-  const [color, setColor] = useState<TermColor>(block.color)
-  const [saving, setSaving] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-
-  const save = async (json: unknown) => {
-    setSaving(true)
-    try {
-      const updated = await api.updateBlock(block.id, {
-        label: label.trim(),
-        color,
-        content: json as never,
-        content_text: contentToText(json),
-      })
-      haptic.ok()
-      onSaved(updated)
-    } catch (e) {
-      haptic.err()
-      window.alert(`Не сохранилось: ${e instanceof Error ? e.message : 'ошибка'}`)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div
-      className="rounded-[var(--radius-card)] border border-[var(--accent)]
-        bg-[var(--bg-card)] p-4 shadow-[var(--shadow-md)] sm:p-5"
-    >
-      <NoteEditor
-        initialContent={block.content}
-        saving={saving}
-        onSave={save}
-        onCancel={onCancel}
-        placeholder="Текст блока: определение, механизм, нормы, клиника…"
-        header={
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="Метка блока: ТПО, Тироцит…"
-              className="h-11 flex-1 rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3.5
-                text-[15px] font-medium placeholder:text-[var(--fg-faint)]
-                focus:border-[var(--accent)] focus:outline-none
-                focus:ring-4 focus:ring-[rgb(var(--accent-glow)/0.12)]"
-            />
-            <ColorPicker value={color} onChange={setColor} />
-          </div>
-        }
-        extraActions={
-          <Button
-            variant="ghost"
-            size="md"
-            className="text-red-600 hover:bg-red-500/10"
-            onClick={() => setConfirmDelete(true)}
-            disabled={saving}
-          >
-            <Trash2 size={15} />
-            Удалить блок
-          </Button>
-        }
-      />
-
-      <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Удалить блок?">
-        <p className="text-[14.5px] leading-relaxed text-[var(--fg-soft)]">
-          Блок «{block.label || 'без метки'}» будет удалён вместе с текстом. Остальные блоки
-          карточки останутся на месте.
-        </p>
-        <div className="mt-5 flex gap-2">
-          <Button
-            variant="danger"
-            onClick={async () => {
-              await api.deleteBlock(block.id)
-              onDeleted(block.id)
-            }}
-          >
-            Удалить
-          </Button>
-          <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-            Отмена
-          </Button>
-        </div>
-      </Modal>
-    </div>
-  )
-}
+/** Какой блок редактируется: id существующего или 'new' для ещё не сохранённого */
+type Editing = string | 'new' | null
 
 export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolean }) {
   const [blocks, setBlocks] = useState<Block[]>([])
   const [loading, setLoading] = useState(true)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [adding, setAdding] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Editing>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [notice, setNotice] = useState<string | null>(null)
+  /** Куда хотели перейти, когда в редакторе остались несохранённые правки */
+  const [pending, setPending] = useState<{ next: Editing } | null>(null)
+  const dirty = useRef(false)
+
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true)
+      try {
+        const data = await api.fetchBlocks(nodeId)
+        setBlocks(data)
+        setLoadError(null)
+        if (!silent) {
+          // Если выбрано «открывать свёрнутыми» — прячем всё, кроме единственного блока
+          setCollapsed(readCollapsePref() && data.length > 1 ? new Set(data.map((b) => b.id)) : new Set())
+        }
+      } catch (e) {
+        if (!silent) {
+          setBlocks([])
+          setLoadError(e instanceof Error ? e.message : 'Не удалось загрузить')
+        }
+      } finally {
+        if (!silent) setLoading(false)
+      }
+    },
+    [nodeId],
+  )
 
   useEffect(() => {
-    let active = true
-    setLoading(true)
-    setEditingId(null)
-    api
-      .fetchBlocks(nodeId)
-      .then((data) => {
-        if (!active) return
-        setBlocks(data)
-        // Если выбрано «открывать свёрнутыми» — прячем всё, кроме единственного блока
-        setCollapsed(
-          readCollapsePref() && data.length > 1 ? new Set(data.map((b) => b.id)) : new Set(),
-        )
-      })
-      .catch(() => active && setBlocks([]))
-      .finally(() => active && setLoading(false))
-    return () => {
-      active = false
-    }
-  }, [nodeId])
+    setEditing(null)
+    dirty.current = false
+    void load()
+  }, [load])
+
+  // Service worker показал сохранённые блоки, а на сервере они уже другие
+  useEffect(
+    () => onDataUpdated((url) => {
+      if (url.includes('/rest/v1/blocks') && url.includes(nodeId)) void load(true)
+    }),
+    [nodeId, load],
+  )
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(null), 6000)
+    return () => clearTimeout(timer)
+  }, [notice])
 
   const toggle = (id: string) =>
     setCollapsed((prev) => {
@@ -224,36 +136,69 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
     writeCollapsePref(!allCollapsed)
   }
 
-  const addBlock = useCallback(async () => {
-    setAdding(true)
-    try {
-      const created = await api.createBlock({
-        node_id: nodeId,
-        label: '',
-        color: 'gold',
-        position: blocks.reduce((max, b) => Math.max(max, b.position), -1) + 1,
-      })
-      setBlocks((prev) => [...prev, created])
-      setEditingId(created.id)
-      haptic.hit()
-    } catch (e) {
-      window.alert(`Не удалось добавить блок: ${e instanceof Error ? e.message : 'ошибка'}`)
-    } finally {
-      setAdding(false)
+  /** Переход к другому блоку или закрытие — с вопросом, если есть несохранённое */
+  const go = (next: Editing) => {
+    if (dirty.current && next !== editing) {
+      setPending({ next })
+      return
     }
-  }, [nodeId, blocks])
+    if (next && next !== 'new') {
+      // Правим только развёрнутый блок — иначе текст не виден
+      setCollapsed((prev) => {
+        const copy = new Set(prev)
+        copy.delete(next)
+        return copy
+      })
+    }
+    setEditing(next)
+  }
+
+  const discardAndGo = () => {
+    if (!pending) return
+    clearDraft(draftKey(editing === 'new' ? null : editing, nodeId))
+    dirty.current = false
+    const { next } = pending
+    setPending(null)
+    go(next)
+  }
 
   const move = async (id: string, direction: -1 | 1) => {
     const index = blocks.findIndex((b) => b.id === id)
     const target = index + direction
     if (index < 0 || target < 0 || target >= blocks.length) return
+    const snapshot = blocks
     const next = [...blocks]
     const [moved] = next.splice(index, 1)
     next.splice(target, 0, moved)
     const withPositions = next.map((b, i) => ({ ...b, position: i }))
     setBlocks(withPositions)
-    await api.reorderBlocks(withPositions.map((b) => ({ id: b.id, position: b.position })))
+    // Пишем только те блоки, у которых позиция действительно изменилась
+    const before = new Map(snapshot.map((b) => [b.id, b.position]))
+    try {
+      await api.reorderBlocks(
+        nodeId,
+        withPositions
+          .filter((b) => before.get(b.id) !== b.position)
+          .map((b) => ({ id: b.id, position: b.position })),
+      )
+    } catch (e) {
+      setBlocks(snapshot)
+      setNotice(`Порядок не сохранился: ${e instanceof Error ? e.message : 'ошибка'}`)
+    }
   }
+
+  /** Заготовка нового блока: в базу попадёт только после первого «Сохранить» */
+  const draftBlock = (): Block => ({
+    id: 'new',
+    node_id: nodeId,
+    label: '',
+    color: 'gold',
+    content: null,
+    content_text: null,
+    position: blocks.reduce((max, b) => Math.max(max, b.position), -1) + 1,
+    created_at: '',
+    updated_at: '',
+  })
 
   if (loading) {
     return (
@@ -278,6 +223,16 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
 
   return (
     <div className="space-y-4">
+      {loadError && (
+        <ErrorNote>
+          Не удалось загрузить блоки: {loadError}{' '}
+          <button type="button" className="font-medium underline" onClick={() => void load()}>
+            Повторить
+          </button>
+        </ErrorNote>
+      )}
+      {notice && <ErrorNote>{notice}</ErrorNote>}
+
       {blocks.length > 1 && (
         <div className="flex justify-end">
           <Button variant="ghost" size="sm" onClick={toggleAll}>
@@ -288,20 +243,24 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
       )}
 
       {blocks.map((block, index) =>
-        editingId === block.id ? (
-          <BlockEditorCard
-            key={block.id}
-            block={block}
-            onCancel={() => setEditingId(null)}
-            onSaved={(updated) => {
-              setBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
-              setEditingId(null)
-            }}
-            onDeleted={(id) => {
-              setBlocks((prev) => prev.filter((b) => b.id !== id))
-              setEditingId(null)
-            }}
-          />
+        editing === block.id ? (
+          <Suspense key={block.id} fallback={<EditorSkeleton />}>
+            <BlockEditorCard
+              block={block}
+              onCancel={() => go(null)}
+              onDirtyChange={(v) => {
+                dirty.current = v
+              }}
+              onSaved={(updated) => {
+                setBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
+                setEditing(null)
+              }}
+              onDeleted={(id) => {
+                setBlocks((prev) => prev.filter((b) => b.id !== id))
+                setEditing(null)
+              }}
+            />
+          </Suspense>
         ) : (
           <article
             key={block.id}
@@ -350,41 +309,66 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
                   >
                     <ChevronDown size={16} />
                   </IconButton>
-                  <IconButton
-                    label="Редактировать блок"
-                    onClick={() => {
-                      // Правим только развёрнутый блок — иначе текст не виден
-                      setCollapsed((prev) => {
-                        const next = new Set(prev)
-                        next.delete(block.id)
-                        return next
-                      })
-                      setEditingId(block.id)
-                    }}
-                  >
+                  <IconButton label="Редактировать блок" onClick={() => go(block.id)}>
                     <Pencil size={15} />
                   </IconButton>
                 </div>
               )}
             </div>
-            {!collapsed.has(block.id) && <NoteView content={block.content} />}
+            {!collapsed.has(block.id) && (
+              <ErrorBoundary title="Не получилось показать этот блок">
+                <NoteView content={block.content} />
+              </ErrorBoundary>
+            )}
           </article>
         ),
       )}
 
-      {canEdit && (
-        <Button variant="outline" onClick={() => void addBlock()} disabled={adding} className="w-full sm:w-auto">
-          {adding ? <Spinner /> : <Plus size={16} />}
+      {editing === 'new' && (
+        <Suspense fallback={<EditorSkeleton />}>
+          <BlockEditorCard
+            block={draftBlock()}
+            isNew
+            onCancel={() => go(null)}
+            onDirtyChange={(v) => {
+              dirty.current = v
+            }}
+            onSaved={(created) => {
+              setBlocks((prev) => [...prev.filter((b) => b.id !== created.id), created])
+              setEditing(null)
+            }}
+            onDeleted={() => setEditing(null)}
+          />
+        </Suspense>
+      )}
+
+      {canEdit && editing !== 'new' && (
+        <Button variant="outline" onClick={() => go('new')} className="w-full sm:w-auto">
+          <Plus size={16} />
           Добавить блок
         </Button>
       )}
 
-      {!canEdit && blocks.length === 0 && (
+      {!canEdit && blocks.length === 0 && !loadError && (
         <p className="rounded-[var(--radius-card)] border border-dashed border-[var(--line-strong)]
           px-4 py-6 text-center text-[14px] text-[var(--fg-faint)]">
           Конспект для этой карточки ещё не написан
         </p>
       )}
+
+      <Modal open={pending !== null} onClose={() => setPending(null)} title="Есть несохранённые изменения">
+        <p className="text-[14.5px] leading-relaxed text-[var(--fg-soft)]">
+          В блоке остался несохранённый текст. Закрыть редактор без сохранения?
+        </p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Button variant="danger" onClick={discardAndGo}>
+            Не сохранять
+          </Button>
+          <Button variant="ghost" onClick={() => setPending(null)}>
+            Вернуться к правке
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { KeyRound, LogOut, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { Button, Field, Spinner } from '@/components/ui'
+import { Button, ErrorNote, Field, Spinner } from '@/components/ui'
 
 export function LoginPage() {
   const { session, isEditor, signIn, signOut } = useAuth()
@@ -88,11 +88,7 @@ export function LoginPage() {
           />
         </div>
 
-        {error && (
-          <p className="mt-4 rounded-xl bg-red-500/10 px-3 py-2.5 text-[13px] text-red-600 dark:text-red-400">
-            {error}
-          </p>
-        )}
+        {error && <ErrorNote className="mt-4">{error}</ErrorNote>}
 
         <Button type="submit" size="lg" className="mt-5 w-full" disabled={busy}>
           {busy && <Spinner />}

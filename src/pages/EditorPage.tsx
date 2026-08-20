@@ -7,7 +7,7 @@ import { fetchEmptyCards } from '@/lib/api'
 import { countCards, nextPosition, pathTo } from '@/lib/tree'
 import { NodeFormModal, type NodeFormValue } from '@/components/NodeFormModal'
 import { Button, EmptyState } from '@/components/ui'
-import { plural } from '@/components/NodeCard'
+import { plural } from '@/lib/plural'
 import { TERM_LABELS, type TermColor } from '@/lib/types'
 
 export function EditorPage() {
@@ -159,7 +159,7 @@ export function EditorPage() {
         </div>
         <p className="mt-3 text-[13px] leading-relaxed text-[var(--fg-faint)]">
           Смысл цветов задаётся в одном месте — <code>src/lib/types.ts</code>, константа{' '}
-          <code>TERM_LABELS</code>. Всего {plural(3, 'цвет', 'цвета', 'цветов')}: их видно и в
+          <code>TERM_LABELS</code>. Всего {Object.keys(TERM_LABELS).length} {plural(Object.keys(TERM_LABELS).length, 'цвет', 'цвета', 'цветов')}: их видно и в
           карточке, и в поиске.
         </p>
       </section>

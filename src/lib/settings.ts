@@ -1,4 +1,6 @@
 import { supabase, isConfigured } from './supabase'
+import { describeError } from './api'
+import { invalidateData } from './sw-client'
 
 export type BackgroundPreset = 'peonies' | 'petals' | 'bloom'
 
@@ -40,5 +42,6 @@ export async function saveBackground(background: BackgroundSetting) {
     .from('app_settings')
     .update({ background, updated_at: new Date().toISOString() })
     .eq('id', 1)
-  if (error) throw error
+  if (error) throw new Error(describeError(error))
+  invalidateData('/rest/v1/app_settings')
 }

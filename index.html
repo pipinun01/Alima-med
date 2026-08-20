@@ -14,24 +14,44 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <title>Личное инфо — конспекты</title>
 
+    <!-- Соединение с базой устанавливаем заранее, пока грузится код: экономит до полсекунды на телефоне -->
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      Шрифты: переменные начертания одним файлом на семейство вместо файла на каждый вес.
+      crossorigin — чтобы service worker мог сохранить таблицу стилей для офлайна.
+      media=print + onload — стили не задерживают первую отрисовку: текст появляется
+      системным шрифтом и тут же подменяется (display=swap).
+    -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap"
       rel="stylesheet"
+      crossorigin
+      href="https://fonts.googleapis.com/css2?family=Onest:wght@400..700&family=Unbounded:wght@600..700&family=Literata:ital,opsz,wght@0,7..72,400..600;1,7..72,400&display=swap"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Onest:wght@400..700&family=Unbounded:wght@600..700&family=Literata:ital,opsz,wght@0,7..72,400..600;1,7..72,400&display=swap"
+      />
+    </noscript>
 
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- crossorigin — чтобы service worker сохранил скрипт и повторные запуски не ждали telegram.org -->
+    <script src="https://telegram.org/js/telegram-web-app.js" crossorigin="anonymous"></script>
     <script>
       // Тема применяется до первой отрисовки, чтобы не было вспышки
       (function () {
         try {
           var saved = localStorage.getItem('lichnoe-info-theme');
           var tg = window.Telegram && window.Telegram.WebApp;
-          var theme = saved || (tg && tg.colorScheme === 'dark' ? 'dark'
-            : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          // В обычном браузере SDK тоже создаёт WebApp, но с пустым initData и platform = 'unknown'
+          var inTelegram = !!tg && (!!tg.initData || (!!tg.platform && tg.platform !== 'unknown'));
+          var theme = saved || ((inTelegram && tg.colorScheme === 'dark')
+            || window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
           document.documentElement.setAttribute('data-theme', theme);
-          if (tg && tg.initData !== undefined) document.documentElement.classList.add('is-telegram');
+          if (inTelegram) document.documentElement.classList.add('is-telegram');
         } catch (e) {}
       })();
     </script>

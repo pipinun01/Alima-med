@@ -3,20 +3,21 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ChevronDown, ChevronUp, FilePlus2, FileText, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useTree } from '@/context/TreeContext'
 import { useAuth } from '@/context/AuthContext'
-import { nextPosition, pathTo } from '@/lib/tree'
+import { nextPosition, nodePatch, parentChoices, pathTo } from '@/lib/tree'
+import { plural } from '@/lib/plural'
 import { bindTelegramBack } from '@/lib/telegram'
 import { Breadcrumbs } from '@/components/Breadcrumbs'
-import { NodeCard, plural } from '@/components/NodeCard'
+import { NodeCard } from '@/components/NodeCard'
 import { BlockList } from '@/components/BlockList'
 import { BranchTabs } from '@/components/BranchTabs'
 import { NodeFormModal, type NodeFormValue } from '@/components/NodeFormModal'
-import { Button, EmptyState, IconButton, Modal, Spinner } from '@/components/ui'
+import { Button, EmptyState, ErrorNote, IconButton, Modal, Spinner } from '@/components/ui'
 import { KIND_META, type NodeKind } from '@/lib/types'
 
 export function NodePage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
-  const { byId, loading, createNode, updateNode, deleteNode, moveNode } = useTree()
+  const { roots, byId, loading, createNode, updateNode, deleteNode, moveNode } = useTree()
   const { isEditor } = useAuth()
 
   const [saving, setSaving] = useState(false)
@@ -24,6 +25,7 @@ export function NodePage() {
   const [addKind, setAddKind] = useState<NodeKind>('branch')
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const node = byId.get(id)
   const chain = useMemo(() => pathTo(byId, id), [byId, id])
@@ -104,12 +106,7 @@ export function NodePage() {
   const submitRename = async (value: NodeFormValue) => {
     setSaving(true)
     try {
-      await updateNode(id, {
-        title: value.title,
-        subtitle: value.subtitle || null,
-        kind: value.kind,
-        icon: value.icon || null,
-      })
+      await updateNode(id, nodePatch({ roots, byId }, node, value))
       setRenameOpen(false)
     } finally {
       setSaving(false)
@@ -118,9 +115,12 @@ export function NodePage() {
 
   const confirmDelete = async () => {
     setSaving(true)
+    setDeleteError(null)
     try {
       await deleteNode(id)
       navigate(parent ? `/n/${parent.id}` : '/', { replace: true })
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'Не удалось удалить')
     } finally {
       setSaving(false)
     }
@@ -160,7 +160,7 @@ export function NodePage() {
             <IconButton label="Переименовать" onClick={() => setRenameOpen(true)}>
               <Pencil size={16} />
             </IconButton>
-            <IconButton label="Удалить" onClick={() => setDeleteOpen(true)} className="hover:text-red-600">
+            <IconButton label="Удалить" onClick={() => setDeleteOpen(true)} className="hover:text-[var(--danger)]">
               <Trash2 size={16} />
             </IconButton>
           </div>
@@ -247,13 +247,23 @@ export function NodePage() {
           subtitle: node.subtitle ?? '',
           kind: node.kind,
           icon: node.icon ?? '',
+          parent_id: node.parent_id,
         }}
+        parents={renameOpen ? parentChoices({ roots, byId }, node.id) : undefined}
+        hasChildren={node.children.length > 0}
         saving={saving}
         onSubmit={submitRename}
         onClose={() => setRenameOpen(false)}
       />
 
-      <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Удалить запись?">
+      <Modal
+        open={deleteOpen}
+        onClose={() => {
+          setDeleteOpen(false)
+          setDeleteError(null)
+        }}
+        title="Удалить запись?"
+      >
         <p className="text-[14.5px] leading-relaxed text-[var(--fg-soft)]">
           «{node.title}» будет удалена
           {node.children.length > 0 && meta.child && (
@@ -267,8 +277,9 @@ export function NodePage() {
               )}
             </>
           )}
-          . Действие необратимо.
+          . Тексты блоков останутся в истории правок, но из интерфейса их уже не вернуть.
         </p>
+        {deleteError && <ErrorNote className="mt-4">{deleteError}</ErrorNote>}
         <div className="mt-5 flex gap-2">
           <Button variant="danger" onClick={() => void confirmDelete()} disabled={saving}>
             {saving && <Spinner />}

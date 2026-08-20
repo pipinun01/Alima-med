@@ -36,6 +36,10 @@
   --accent-fg:   #ffffff;
   --accent-glow: 15 118 110;
 
+  --danger:      #c2410c;
+  --danger-soft: #fdece4;
+  --danger-fg:   #ffffff;
+
   --grad: linear-gradient(135deg, #0f766e 0%, #14919b 55%, #1f9ea8 100%);
   --halo: radial-gradient(60rem 30rem at 50% -8rem, rgb(15 118 110 / 0.10), transparent 70%);
 
@@ -70,6 +74,10 @@
   --accent-fg:   #04211d;
   --accent-glow: 45 212 191;
 
+  --danger:      #fb923c;
+  --danger-soft: #2c1a10;
+  --danger-fg:   #1c0a02;
+
   --grad: linear-gradient(135deg, #2dd4bf 0%, #38bdf8 60%, #818cf8 100%);
   --halo: radial-gradient(60rem 30rem at 50% -8rem, rgb(45 212 191 / 0.13), transparent 70%);
 
@@ -103,6 +111,10 @@
   --accent-soft: #ffe6ef;
   --accent-fg:   #ffffff;
   --accent-glow: 214 51 108;
+
+  --danger:      #c2410c;
+  --danger-soft: #feeae0;
+  --danger-fg:   #ffffff;
 
   --grad: linear-gradient(135deg, #d6336c 0%, #f06595 52%, #cc5de8 100%);
   --halo: radial-gradient(60rem 30rem at 50% -8rem, rgb(240 101 149 / 0.22), transparent 70%);
@@ -205,12 +217,18 @@ body {
 .prose-note :where(code)::before, .prose-note :where(code)::after { content: none; }
 .prose-note :where(table) { display: block; overflow-x: auto; white-space: nowrap; }
 
-/* ─── Редактор ───────────────────────────────────────────────────────────── */
+/* ─── Редактор и чтение ──────────────────────────────────────────────────── */
+/* Базовый размер .prose-note — 17px. Чтение чуть крупнее: на телефоне так
+   легче глазам. Правка чуть мельче: над клавиатурой помещается больше строк,
+   а общий масштаб (--app-zoom) действует на оба режима одинаково. */
+.prose-note.note-body { font-size: 1.125rem; line-height: 1.8; }
+.prose-note.ProseMirror[contenteditable="true"] { font-size: 0.96875rem; line-height: 1.65; }
+
 .ProseMirror { outline: none; }
 .ProseMirror[contenteditable="true"] { min-height: 14rem; }
-/* В режиме чтения абзацы редактора не должны добавлять лишние поля */
-.prose-note .ProseMirror > :first-child { margin-top: 0; }
-.prose-note .ProseMirror > :last-child { margin-bottom: 0; }
+/* Крайние абзацы не добавляют лишних полей: ни в редакторе, ни в статическом чтении (.note-body) */
+.prose-note .ProseMirror > :first-child, .prose-note.note-body > :first-child { margin-top: 0; }
+.prose-note .ProseMirror > :last-child, .prose-note.note-body > :last-child { margin-bottom: 0; }
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;

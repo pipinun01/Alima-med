@@ -36,6 +36,7 @@ export function Lightbox({ src, onClose }: { src: string | null; onClose: () => 
       <img
         src={src}
         alt=""
+        crossOrigin="anonymous"
         className="max-h-full max-w-full rounded-xl object-contain shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       />

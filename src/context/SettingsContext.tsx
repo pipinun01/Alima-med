@@ -5,6 +5,7 @@ import {
   saveBackground,
   type BackgroundSetting,
 } from '@/lib/settings'
+import { onDataUpdated } from '@/lib/sw-client'
 
 const LOCAL_OFF = 'lichnoe-info-bg-hidden'
 const LOCAL_SCALE = 'lichnoe-info-scale'
@@ -51,6 +52,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     fetchBackground().then(setBackground).catch(() => setBackground(DEFAULT_BACKGROUND))
   }, [])
+
+  // Редактор сменил фон с другого устройства — service worker заметит и сообщит
+  useEffect(
+    () => onDataUpdated((url) => {
+      if (url.includes('/rest/v1/app_settings')) fetchBackground().then(setBackground).catch(() => {})
+    }),
+    [],
+  )
 
   // Масштаб раздаётся через переменную: её подхватывают блоки с классом app-zoom
   useEffect(() => {

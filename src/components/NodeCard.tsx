@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { ArrowUpRight, ChevronDown, ChevronUp, FileText, Layers, Pencil } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useTree } from '@/context/TreeContext'
-import { countCards } from '@/lib/tree'
+import { countCards, nodePatch, parentChoices } from '@/lib/tree'
+import { plural } from '@/lib/plural'
 import { haptic } from '@/lib/telegram'
 import { KIND_META, type TreeNode } from '@/lib/types'
 import { NodeFormModal, type NodeFormValue } from './NodeFormModal'
@@ -26,12 +27,7 @@ export function NodeCard({ node, index = 0 }: { node: TreeNode; index?: number }
   const rename = async (value: NodeFormValue) => {
     setSaving(true)
     try {
-      await updateNode(node.id, {
-        title: value.title,
-        subtitle: value.subtitle || null,
-        kind: value.kind,
-        icon: value.icon || null,
-      })
+      await updateNode(node.id, nodePatch({ roots, byId }, node, value))
       setRenaming(false)
     } finally {
       setSaving(false)
@@ -140,19 +136,14 @@ export function NodeCard({ node, index = 0 }: { node: TreeNode; index?: number }
           subtitle: node.subtitle ?? '',
           kind: node.kind,
           icon: node.icon ?? '',
+          parent_id: node.parent_id,
         }}
+        parents={renaming ? parentChoices({ roots, byId }, node.id) : undefined}
+        hasChildren={node.children.length > 0}
         saving={saving}
         onSubmit={rename}
         onClose={() => setRenaming(false)}
       />
     </article>
   )
-}
-
-export function plural(n: number, one: string, few: string, many: string) {
-  const mod10 = n % 10
-  const mod100 = n % 100
-  if (mod10 === 1 && mod100 !== 11) return one
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few
-  return many
 }

@@ -3,6 +3,7 @@
 interface TgWebApp {
   initData: string
   initDataUnsafe: { user?: { id: number; first_name?: string; username?: string } }
+  platform?: string
   colorScheme: 'light' | 'dark'
   ready: () => void
   expand: () => void
@@ -24,8 +25,16 @@ declare global {
 
 export const tg = (): TgWebApp | undefined => window.Telegram?.WebApp
 
-/** Внутри Telegram initData — строка (пусть и пустая в режиме отладки) */
-export const inTelegram = (): boolean => typeof tg()?.initData === 'string'
+/**
+ * Скрипт telegram-web-app.js подключён всегда, и в обычном браузере он тоже
+ * создаёт window.Telegram.WebApp — с пустым initData и platform = 'unknown'.
+ * Внутри Telegram initData непустой, а platform — ios / android / tdesktop…
+ */
+export const inTelegram = (): boolean => {
+  const app = tg()
+  if (!app) return false
+  return Boolean(app.initData) || Boolean(app.platform && app.platform !== 'unknown')
+}
 
 export function initTelegram() {
   const app = tg()
@@ -45,11 +54,14 @@ export function syncTelegramChrome() {
   app.setBackgroundColor?.(bg)
 }
 
+/** Вибрация только внутри Telegram: в браузере SDK лишь сыпал бы предупреждениями в консоль */
+const feedback = () => (inTelegram() ? tg()?.HapticFeedback : undefined)
+
 export const haptic = {
-  tap: () => tg()?.HapticFeedback?.selectionChanged(),
-  hit: () => tg()?.HapticFeedback?.impactOccurred('light'),
-  ok:  () => tg()?.HapticFeedback?.notificationOccurred('success'),
-  err: () => tg()?.HapticFeedback?.notificationOccurred('error'),
+  tap: () => feedback()?.selectionChanged(),
+  hit: () => feedback()?.impactOccurred('light'),
+  ok:  () => feedback()?.notificationOccurred('success'),
+  err: () => feedback()?.notificationOccurred('error'),
 }
 
 /** Системная кнопка «назад» Telegram, привязанная к переданному обработчику */

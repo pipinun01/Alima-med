@@ -178,7 +178,8 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
           ) : (
             results.map((hit, i) => (
               <button
-                key={hit.id}
+                // одна карточка может встретиться несколько раз — по разу на каждый блок
+                key={`${hit.id}|${hit.label ?? ''}`}
                 data-index={i}
                 onMouseEnter={() => setCursor(i)}
                 onClick={() => go(hit.id)}
@@ -196,7 +197,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
                   <span className="flex items-center gap-1.5">
                     <span className="truncate text-[15px] font-medium">{hit.title}</span>
                     {hit.label && (
-                      <span className="term shrink-0 text-[11.5px]" data-color="gold">
+                      <span className="term shrink-0 text-[11.5px]" data-color={hit.color ?? 'gold'}>
                         {hit.label}
                       </span>
                     )}

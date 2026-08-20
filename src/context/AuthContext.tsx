@@ -36,19 +36,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // Проверяем по id пользователя, а не по объекту сессии: токен обновляется
+  // каждый час, и перепроверять права при каждом обновлении незачем
+  const userId = session?.user.id ?? null
   useEffect(() => {
     let active = true
-    if (!session?.user) {
+    if (!userId) {
       setIsEditor(false)
       return
     }
-    checkIsEditor(session.user.id).then((ok) => {
+    checkIsEditor(userId).then((ok) => {
       if (active) setIsEditor(ok)
     })
     return () => {
       active = false
     }
-  }, [session])
+  }, [userId])
 
   const value = useMemo<AuthCtx>(
     () => ({

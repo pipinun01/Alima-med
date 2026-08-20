@@ -1,4 +1,4 @@
-import type { DbNode, TreeNode } from './types'
+import type { DbNode, NodeKind, TreeNode } from './types'
 
 export interface TreeIndex {
   roots: TreeNode[]
@@ -63,7 +63,61 @@ export function descendantIds(node: TreeNode): string[] {
   return out
 }
 
+export interface ParentChoice {
+  /** null — верхний уровень, то есть запись станет главой */
+  id: string | null
+  label: string
+  depth: number
+}
+
+/**
+ * Куда можно переложить запись: любой раздел (не карточка), кроме неё самой
+ * и её потомков — внутрь себя переезжать нельзя.
+ */
+export function parentChoices(index: TreeIndex, nodeId: string): ParentChoice[] {
+  const self = index.byId.get(nodeId)
+  const banned = new Set(self ? [nodeId, ...descendantIds(self)] : [])
+  const out: ParentChoice[] = [{ id: null, label: 'Верхний уровень — среди глав', depth: 0 }]
+  const walk = (list: TreeNode[]) => {
+    for (const n of list) {
+      if (n.kind === 'card' || banned.has(n.id)) continue
+      out.push({ id: n.id, label: n.title, depth: n.depth + 1 })
+      walk(n.children)
+    }
+  }
+  walk(index.roots)
+  return out
+}
+
 /** Следующая позиция среди соседей */
 export function nextPosition(siblings: TreeNode[]): number {
   return siblings.reduce((max, s) => Math.max(max, s.position), -1) + 1
+}
+
+/** Что ввели в форме записи — название, подзаголовок, тип, иконка и, возможно, новый раздел */
+export interface NodeFormInput {
+  title: string
+  subtitle: string
+  kind: NodeKind
+  icon: string
+  parent_id?: string | null
+}
+
+/**
+ * Превращает форму в патч для updateNode. Если раздел сменился, запись встаёт
+ * в конец нового списка соседей.
+ */
+export function nodePatch(index: TreeIndex, node: DbNode, value: NodeFormInput): Partial<DbNode> {
+  const patch: Partial<DbNode> = {
+    title: value.title,
+    subtitle: value.subtitle || null,
+    kind: value.kind,
+    icon: value.icon || null,
+  }
+  if (value.parent_id !== undefined && value.parent_id !== node.parent_id) {
+    const siblings = value.parent_id ? (index.byId.get(value.parent_id)?.children ?? []) : index.roots
+    patch.parent_id = value.parent_id
+    patch.position = nextPosition(siblings)
+  }
+  return patch
 }

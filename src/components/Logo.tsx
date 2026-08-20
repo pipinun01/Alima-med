@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 
-export function Logo({ compact = false }: { compact?: boolean }) {
+export function Logo() {
   return (
     <Link to="/" className="group flex items-center gap-2.5" aria-label="На главную">
       <span
@@ -17,11 +17,9 @@ export function Logo({ compact = false }: { compact?: boolean }) {
           />
         </svg>
       </span>
-      {!compact && (
-        <span className="whitespace-nowrap font-display text-[15.5px] font-semibold leading-none tracking-tight sm:text-[17px]">
-          Личное<span className="text-grad"> инфо</span>
-        </span>
-      )}
+      <span className="whitespace-nowrap font-display text-[15.5px] font-semibold leading-none tracking-tight sm:text-[17px]">
+        Личное<span className="text-grad"> инфо</span>
+      </span>
     </Link>
   )
 }

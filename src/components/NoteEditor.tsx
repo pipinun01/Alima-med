@@ -8,7 +8,7 @@ import { buildExtensions } from '@/lib/tiptap-config'
 import { uploadImage } from '@/lib/api'
 import { TERM_LABELS, type TermColor } from '@/lib/types'
 import { haptic } from '@/lib/telegram'
-import { Button, Modal, Spinner } from './ui'
+import { Button, ErrorNote, Modal, Spinner } from './ui'
 
 const TERM_SWATCH: Record<TermColor, string> = {
   red: 'var(--term-red-fg)',
@@ -174,24 +174,37 @@ export function NoteEditor({
   onSave,
   onCancel,
   saving,
+  error,
   header,
   placeholder,
   extraActions,
+  onChange,
+  replace,
 }: {
   initialContent: unknown
   onSave: (json: unknown) => void | Promise<void>
   onCancel: () => void
   saving: boolean
+  /** Почему не сохранилось — показывается под кнопками, текст остаётся в редакторе */
+  error?: string | null
   /** Поля над текстом — например метка и цвет блока */
   header?: React.ReactNode
   placeholder?: string
   extraActions?: React.ReactNode
+  /** Каждая правка текста — сюда; так пишется черновик */
+  onChange?: (json: unknown) => void
+  /** Подменить текст снаружи (восстановить черновик): новое значение version — новая подмена */
+  replace?: { content: unknown; version: number } | null
 }) {
   const [uploading, setUploading] = useState(false)
   const [termModal, setTermModal] = useState(false)
   const [termNote, setTermNote] = useState('')
   const [dirty, setDirty] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const onChangeRef = useRef(onChange)
+  useEffect(() => {
+    onChangeRef.current = onChange
+  })
 
   const editor = useEditor({
     extensions: buildExtensions(
@@ -200,7 +213,10 @@ export function NoteEditor({
     content: (initialContent as never) ?? '',
     editable: true,
     immediatelyRender: true,
-    onUpdate: () => setDirty(true),
+    onUpdate: ({ editor: current }) => {
+      setDirty(true)
+      onChangeRef.current?.(current.getJSON())
+    },
     editorProps: {
       attributes: { class: 'prose prose-note max-w-none focus:outline-none' },
       handlePaste(_view, event) {
@@ -223,17 +239,26 @@ export function NoteEditor({
     },
   })
 
+  // Восстановление черновика: содержимое подменяется снаружи
+  const appliedVersion = useRef(0)
+  useEffect(() => {
+    if (!editor || !replace || replace.version === appliedVersion.current) return
+    appliedVersion.current = replace.version
+    editor.commands.setContent((replace.content as never) ?? '', { emitUpdate: false })
+    setDirty(true)
+  }, [editor, replace])
+
   const insertImage = useCallback(
     async (file: File) => {
       if (!editor) return
-      if (file.size > 12 * 1024 * 1024) {
-        window.alert('Файл больше 12 МБ — сожмите изображение перед загрузкой')
-        return
-      }
       setUploading(true)
       try {
-        const url = await uploadImage(file)
-        editor.chain().focus().setImage({ src: url }).run()
+        const { url, width, height } = await uploadImage(file)
+        editor
+          .chain()
+          .focus()
+          .setImage({ src: url, width: width ?? undefined, height: height ?? undefined })
+          .run()
         haptic.ok()
       } catch (e) {
         haptic.err()
@@ -249,12 +274,12 @@ export function NoteEditor({
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
-        if (editor) void onSave(editor.getJSON())
+        if (editor && !saving) void onSave(editor.getJSON())
       }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [editor, onSave])
+  }, [editor, onSave, saving])
 
   useEffect(() => {
     if (!dirty) return
@@ -298,10 +323,12 @@ export function NoteEditor({
         <EditorContent editor={editor} />
       </div>
 
-      <div className="mt-4 flex items-center gap-2">
+      {error && <ErrorNote className="mt-4">{error}</ErrorNote>}
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button onClick={() => void onSave(editor.getJSON())} disabled={saving}>
           {saving ? <Spinner /> : <Check size={16} />}
-          Сохранить
+          {saving ? 'Сохраняю…' : error ? 'Попробовать ещё раз' : 'Сохранить'}
         </Button>
         <Button variant="ghost" onClick={onCancel} disabled={saving}>
           Отмена
@@ -314,8 +341,8 @@ export function NoteEditor({
 
       <Modal open={termModal} onClose={() => setTermModal(false)} title="Подсказка к термину">
         <p className="mb-3 text-[13px] leading-relaxed text-[var(--fg-soft)]">
-          Короткое пояснение всплывёт при наведении на термин и попадёт в список терминов под
-          конспектом.
+          Короткое пояснение появится в списке терминов под блоком, а на компьютере — ещё и при
+          наведении на термин.
         </p>
         <textarea
           value={termNote}

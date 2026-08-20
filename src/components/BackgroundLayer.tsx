@@ -10,15 +10,17 @@ const BLOOMS = [
   { top: '41%',  left: '39%',  size: 210, rotate: 8,   blur: 3, depth: 0.42 },
 ]
 
+/** Узор лепестков — маска: цвет задаёт тема через --bloom-2, сам SVG чёрно-белый */
 const PETAL_TILE = encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
-     <g fill="#e879f9" fill-opacity="0.5">
+     <g fill="#000">
        <path d="M30 18c7 6 8 18 0 26-8-8-7-20 0-26z"/>
        <path d="M92 54c8 5 10 17 3 26-9-7-9-19-3-26z"/>
        <path d="M54 92c8 4 11 16 5 25-9-6-10-18-5-25z"/>
      </g>
    </svg>`,
 )
+const PETAL_MASK = `url("data:image/svg+xml,${PETAL_TILE}")`
 
 export function BackgroundLayer({ setting }: { setting: BackgroundSetting }) {
   if (setting.kind === 'none') return null
@@ -51,9 +53,12 @@ export function BackgroundLayer({ setting }: { setting: BackgroundSetting }) {
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage: `url("data:image/svg+xml,${PETAL_TILE}")`,
-            backgroundSize: '160px 160px',
-            opacity: intensity * 0.5,
+            backgroundColor: 'var(--bloom-2)',
+            maskImage: PETAL_MASK,
+            WebkitMaskImage: PETAL_MASK,
+            maskSize: '160px 160px',
+            WebkitMaskSize: '160px 160px',
+            opacity: intensity * 0.35,
           }}
         />
         <div className="absolute inset-0" style={{ background: 'var(--halo)' }} />

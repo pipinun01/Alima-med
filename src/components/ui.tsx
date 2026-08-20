@@ -12,7 +12,7 @@ const VARIANTS: Record<Variant, string> = {
   ghost: 'text-[var(--fg-soft)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg)]',
   outline:
     'border border-[var(--line-strong)] text-[var(--fg)] hover:bg-[var(--bg-hover)] bg-[var(--bg-card)]',
-  danger: 'bg-red-600 text-white hover:bg-red-700',
+  danger: 'bg-[var(--danger)] text-[var(--danger-fg)] hover:brightness-110 active:brightness-95',
 }
 
 const SIZES: Record<Size, string> = {
@@ -91,6 +91,21 @@ export function Spinner({ className = '' }: { className?: string }) {
   )
 }
 
+/** Строка ошибки под формой: красным, но без крика */
+export function ErrorNote({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  if (!children) return null
+  return (
+    <p
+      role="alert"
+      className={`rounded-xl bg-[var(--danger-soft)] px-3 py-2.5 text-[13px] leading-relaxed text-[var(--danger)] ${className}`}
+    >
+      {children}
+    </p>
+  )
+}
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
 export function Modal({
   open,
   onClose,
@@ -105,19 +120,42 @@ export function Modal({
   width?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
 
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const opener = document.activeElement as HTMLElement | null
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') return onCloseRef.current()
+      // Tab ходит по кругу внутри окна, а не уходит на страницу под ним
+      if (e.key === 'Tab' && ref.current) {
+        const items = [...ref.current.querySelectorAll<HTMLElement>(FOCUSABLE)]
+        if (!items.length) return
+        const first = items[0]
+        const last = items[items.length - 1]
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault()
+          first.focus()
+        }
+      }
+    }
     document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    ref.current?.querySelector<HTMLElement>('input, textarea, button')?.focus()
+    ref.current?.querySelector<HTMLElement>('input, textarea, select, button')?.focus()
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
+      // Фокус возвращается туда, откуда окно открыли
+      opener?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 
@@ -180,22 +218,5 @@ export function EmptyState({
       )}
       {action && <div className="mt-5">{action}</div>}
     </div>
-  )
-}
-
-export function Badge({
-  children,
-  className = '',
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full bg-[var(--bg-subtle)]
-        px-2 py-0.5 text-[11px] font-medium text-[var(--fg-soft)] ${className}`}
-    >
-      {children}
-    </span>
   )
 }

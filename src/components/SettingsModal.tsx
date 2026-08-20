@@ -13,6 +13,7 @@ import {
   type OfflineStats, type PrefetchProgress,
 } from '@/lib/offline'
 import { useInstall } from '@/lib/install'
+import { plural } from '@/lib/plural'
 import { haptic } from '@/lib/telegram'
 import { Button, Modal, Spinner } from './ui'
 
@@ -178,7 +179,7 @@ function OfflineSection() {
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => void download()} disabled={busy || cardIds.length === 0}>
             <CloudDownload size={16} />
-            Скачать {cardIds.length} {cardIds.length === 1 ? 'карточку' : 'карточек'}
+            Скачать {cardIds.length} {plural(cardIds.length, 'карточку', 'карточки', 'карточек')}
           </Button>
           {stats && (stats.data > 0 || stats.media > 0) && (
             <Button
@@ -243,7 +244,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const pickPhoto = async (file: File) => {
     setUploading(true)
     try {
-      const url = await uploadImage(file)
+      const { url } = await uploadImage(file)
       setDraft((d) => ({ ...d, kind: 'photo', url }))
       haptic.ok()
     } catch (e) {
@@ -387,39 +388,39 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               )
             })}
 
-            <button
-              onClick={() => fileRef.current?.click()}
-              className={`col-span-2 flex items-center gap-2.5 rounded-2xl border p-3 text-left
-                transition-colors
-                ${
-                  draft.kind === 'photo'
-                    ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
-                    : 'border-[var(--line)] hover:bg-[var(--bg-subtle)]'
-                }`}
-            >
-              {uploading ? <Spinner /> : <ImageUp size={17} className="shrink-0 text-[var(--fg-soft)]" />}
-              <span className="min-w-0 flex-1">
-                <span className="block text-[13.5px] font-medium">Своё фото</span>
-                <span className="block truncate text-[12px] text-[var(--fg-soft)]">
-                  {draft.kind === 'photo' && draft.url ? draft.url.split('/').pop() : 'Например, пионы с телефона'}
+            {/* Кнопка «убрать» лежит рядом, а не внутри: кнопка в кнопке — невалидная разметка */}
+            <div className="relative col-span-2">
+              <button
+                onClick={() => fileRef.current?.click()}
+                className={`flex w-full items-center gap-2.5 rounded-2xl border p-3 text-left transition-colors
+                  ${draft.kind === 'photo' && draft.url ? 'pr-12' : ''}
+                  ${
+                    draft.kind === 'photo'
+                      ? 'border-[var(--accent)] bg-[var(--accent-soft)]'
+                      : 'border-[var(--line)] hover:bg-[var(--bg-subtle)]'
+                  }`}
+              >
+                {uploading ? <Spinner /> : <ImageUp size={17} className="shrink-0 text-[var(--fg-soft)]" />}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13.5px] font-medium">Своё фото</span>
+                  <span className="block truncate text-[12px] text-[var(--fg-soft)]">
+                    {draft.kind === 'photo' && draft.url ? draft.url.split('/').pop() : 'Например, пионы с телефона'}
+                  </span>
                 </span>
-              </span>
+              </button>
               {draft.kind === 'photo' && draft.url && (
-                <span
-                  role="button"
-                  tabIndex={0}
+                <button
+                  type="button"
                   aria-label="Убрать фото"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setDraft((d) => ({ ...d, kind: 'preset', preset: d.preset ?? 'peonies', url: null }))
-                  }}
-                  onKeyDown={(e) => e.key === 'Enter' && setDraft((d) => ({ ...d, kind: 'preset', url: null }))}
-                  className="rounded-lg p-1.5 text-[var(--fg-faint)] hover:bg-[var(--bg-hover)] hover:text-red-600"
+                  title="Убрать фото"
+                  onClick={() => setDraft((d) => ({ ...d, kind: 'preset', preset: d.preset ?? 'peonies', url: null }))}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-[var(--fg-faint)]
+                    hover:bg-[var(--bg-hover)] hover:text-[var(--danger)]"
                 >
                   <Trash2 size={15} />
-                </span>
+                </button>
               )}
-            </button>
+            </div>
           </div>
 
           <input

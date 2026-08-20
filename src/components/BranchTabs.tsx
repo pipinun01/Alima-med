@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ChevronRight, Plus } from 'lucide-react'
 import { Button } from './ui'
 import type { TreeNode } from '@/lib/types'
@@ -20,13 +19,21 @@ export function BranchTabs({
   onAddBranch: () => void
   onAddCard: (branchId: string) => void
 }) {
-  const [activeId, setActiveId] = useState<string | null>(branches[0]?.id ?? null)
-
-  useEffect(() => {
-    if (!branches.some((b) => b.id === activeId)) setActiveId(branches[0]?.id ?? null)
-  }, [branches, activeId])
-
+  // Выбранная ветка хранится в адресе (?b=…): вернулись из карточки — открыта та же вкладка
+  const [params, setParams] = useSearchParams()
+  const requested = params.get('b')
+  const activeId = branches.some((b) => b.id === requested) ? requested : (branches[0]?.id ?? null)
   const active = branches.find((b) => b.id === activeId) ?? null
+
+  const setActiveId = (id: string) =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.set('b', id)
+        return next
+      },
+      { replace: true },
+    )
 
   return (
     <section className="mt-8">
