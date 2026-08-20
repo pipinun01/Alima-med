@@ -15,7 +15,7 @@ import {
 import { useInstall } from '@/lib/install'
 import { plural } from '@/lib/plural'
 import { haptic } from '@/lib/telegram'
-import { Button, Modal, Spinner } from './ui'
+import { Button, ErrorNote, Modal, Spinner } from './ui'
 
 function Slider({
   label,
@@ -121,6 +121,7 @@ function OfflineSection() {
   const [stats, setStats] = useState<OfflineStats | null>(null)
   const [progress, setProgress] = useState<PrefetchProgress | null>(null)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(() => {
     void offlineStats().then(setStats)
@@ -134,12 +135,13 @@ function OfflineSection() {
 
   const download = async () => {
     setBusy(true)
+    setError(null)
     try {
       await prefetchForOffline(cardIds, setProgress)
       haptic.ok()
     } catch {
       haptic.err()
-      window.alert('Не всё удалось скачать — попробуйте ещё раз при хорошей связи')
+      setError('Не всё удалось скачать — попробуйте ещё раз при хорошей связи')
     } finally {
       setBusy(false)
       setProgress(null)
@@ -196,6 +198,8 @@ function OfflineSection() {
         </div>
       )}
 
+      {error && <ErrorNote className="mt-3">{error}</ErrorNote>}
+
       {stats?.savedAt && !busy && (
         <p className="mt-2 text-[12px] text-[var(--fg-faint)]">
           Скачано целиком {dateTime(stats.savedAt)} · сохранено {stats.data} ответов и {stats.media}{' '}
@@ -216,10 +220,14 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [draft, setDraft] = useState<BackgroundSetting>(background)
   const [busy, setBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (open) setDraft(background)
+    if (open) {
+      setDraft(background)
+      setError(null)
+    }
   }, [open, background])
 
   // Живой предпросмотр: меняем фон сразу, но в базу пишем только по кнопке
@@ -243,13 +251,14 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
   const pickPhoto = async (file: File) => {
     setUploading(true)
+    setError(null)
     try {
       const { url } = await uploadImage(file)
       setDraft((d) => ({ ...d, kind: 'photo', url }))
       haptic.ok()
     } catch (e) {
       haptic.err()
-      window.alert(`Не удалось загрузить фото: ${e instanceof Error ? e.message : 'ошибка'}`)
+      setError(`Не удалось загрузить фото: ${e instanceof Error ? e.message : 'ошибка'}`)
     } finally {
       setUploading(false)
     }
@@ -458,17 +467,20 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             </div>
           )}
 
+          {error && <ErrorNote className="mt-4">{error}</ErrorNote>}
+
           <div className="mt-5 flex gap-2">
             <Button
               disabled={!dirty || busy}
               onClick={async () => {
                 setBusy(true)
+                setError(null)
                 try {
                   await save(draft)
                   haptic.ok()
                   onClose()
                 } catch (e) {
-                  window.alert(`Не сохранилось: ${e instanceof Error ? e.message : 'ошибка'}`)
+                  setError(`Не сохранилось: ${e instanceof Error ? e.message : 'ошибка'}`)
                 } finally {
                   setBusy(false)
                 }

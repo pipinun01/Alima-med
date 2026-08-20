@@ -197,6 +197,7 @@ export function NoteEditor({
   replace?: { content: unknown; version: number } | null
 }) {
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [termModal, setTermModal] = useState(false)
   const [termNote, setTermNote] = useState('')
   const [dirty, setDirty] = useState(false)
@@ -252,6 +253,7 @@ export function NoteEditor({
     async (file: File) => {
       if (!editor) return
       setUploading(true)
+      setUploadError(null)
       try {
         const { url, width, height } = await uploadImage(file)
         editor
@@ -262,7 +264,7 @@ export function NoteEditor({
         haptic.ok()
       } catch (e) {
         haptic.err()
-        window.alert(`Не удалось загрузить фото: ${e instanceof Error ? e.message : 'ошибка'}`)
+        setUploadError(`Не удалось загрузить фото: ${e instanceof Error ? e.message : 'ошибка'}`)
       } finally {
         setUploading(false)
       }
@@ -323,6 +325,7 @@ export function NoteEditor({
         <EditorContent editor={editor} />
       </div>
 
+      {uploadError && <ErrorNote className="mt-4">{uploadError}</ErrorNote>}
       {error && <ErrorNote className="mt-4">{error}</ErrorNote>}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
