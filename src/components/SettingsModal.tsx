@@ -3,7 +3,9 @@ import {
   Check, CloudDownload, Eye, EyeOff, Flower2, ImageUp, Share, Smartphone, Trash2, WifiOff,
 } from 'lucide-react'
 import { THEMES, THEME_META, useTheme } from '@/context/ThemeContext'
-import { SCALES, useSettings } from '@/context/SettingsContext'
+import {
+  NOTE_LEADINGS, NOTE_SIZES, SCALES, useSettings, type NoteLeading,
+} from '@/context/SettingsContext'
 import { useAuth } from '@/context/AuthContext'
 import { useTree } from '@/context/TreeContext'
 import { uploadImage } from '@/lib/api'
@@ -214,7 +216,9 @@ function OfflineSection() {
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { theme, setTheme } = useTheme()
-  const { background, hidden, setHidden, scale, setScale, save, preview } = useSettings()
+  const {
+    background, hidden, setHidden, scale, setScale, noteSize, setNoteSize, noteLeading, setNoteLeading, save, preview,
+  } = useSettings()
   const { isEditor } = useAuth()
 
   const [draft, setDraft] = useState<BackgroundSetting>(background)
@@ -328,6 +332,65 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             </button>
           ))}
         </div>
+      </section>
+
+      {/* ─── Текст конспекта ─────────────────────────────────────────────── */}
+      <section className="mt-6">
+        <h3 className="mb-2.5 text-[13px] font-medium text-[var(--fg-soft)]">
+          Текст конспекта
+          <span className="ml-1.5 font-normal text-[var(--fg-faint)]">только на этом устройстве</span>
+        </h3>
+        <div className="grid grid-cols-6 gap-1.5">
+          {NOTE_SIZES.map((value) => (
+            <button
+              key={value}
+              onClick={() => {
+                haptic.tap()
+                setNoteSize(value)
+              }}
+              aria-pressed={noteSize === value}
+              aria-label={`${value} пикселей`}
+              className={`flex flex-col items-center gap-1 rounded-2xl border py-2.5 transition-colors
+                ${
+                  noteSize === value
+                    ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
+                    : 'border-[var(--line)] text-[var(--fg-soft)] hover:bg-[var(--bg-subtle)]'
+                }`}
+            >
+              <span className="font-read leading-none" style={{ fontSize: value }}>
+                Аа
+              </span>
+              <span className="text-[10.5px] tabular-nums text-[var(--fg-faint)]">{value}</span>
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 grid grid-cols-3 gap-1.5">
+          {(Object.keys(NOTE_LEADINGS) as NoteLeading[]).map((key) => (
+            <button
+              key={key}
+              onClick={() => {
+                haptic.tap()
+                setNoteLeading(key)
+              }}
+              aria-pressed={noteLeading === key}
+              className={`rounded-2xl border px-2 py-2 text-[12.5px] font-medium transition-colors
+                ${
+                  noteLeading === key
+                    ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]'
+                    : 'border-[var(--line)] text-[var(--fg-soft)] hover:bg-[var(--bg-subtle)]'
+                }`}
+            >
+              {NOTE_LEADINGS[key].label}
+            </button>
+          ))}
+        </div>
+        <p
+          className="prose-note mt-2.5 rounded-2xl border border-[var(--line)] px-3.5 py-2.5 text-[var(--fg-soft)]"
+          style={{ fontSize: noteSize, lineHeight: NOTE_LEADINGS[noteLeading].value }}
+        >
+          Так будет выглядеть текст конспекта. Верхняя настройка «Размер текста» меняет всё
+          приложение, эта — только сами конспекты.
+        </p>
       </section>
 
       <InstallSection />

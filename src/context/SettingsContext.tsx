@@ -9,10 +9,41 @@ import { onDataUpdated } from '@/lib/sw-client'
 
 const LOCAL_OFF = 'lichnoe-info-bg-hidden'
 const LOCAL_SCALE = 'lichnoe-info-scale'
+const LOCAL_NOTE_SIZE = 'lichnoe-info-note-size'
+const LOCAL_NOTE_LEADING = 'lichnoe-info-note-leading'
 
 /** Ступени размера текста: от мелкого до крупного */
 export const SCALES = [0.9, 1, 1.15, 1.3, 1.5] as const
 export const DEFAULT_SCALE = 1
+
+/** Размер текста конспекта в px — отдельно от общего масштаба, только для чтения и правки */
+export const NOTE_SIZES = [14, 15, 16, 17, 18, 20] as const
+export const DEFAULT_NOTE_SIZE = 16
+
+/** Межстрочное текста конспекта: «компактно» — как в Telegram */
+export type NoteLeading = 'compact' | 'normal' | 'loose'
+export const NOTE_LEADINGS: Record<NoteLeading, { label: string; value: number }> = {
+  compact: { label: 'Компактно', value: 1.45 },
+  normal:  { label: 'Обычно',    value: 1.65 },
+  loose:   { label: 'Свободно',  value: 1.85 },
+}
+export const DEFAULT_NOTE_LEADING: NoteLeading = 'compact'
+
+function readLocal<T>(key: string, parse: (raw: string | null) => T): T {
+  try {
+    return parse(localStorage.getItem(key))
+  } catch {
+    return parse(null)
+  }
+}
+
+function writeLocal(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    /* приватный режим */
+  }
+}
 
 interface SettingsCtx {
   background: BackgroundSetting
@@ -22,6 +53,11 @@ interface SettingsCtx {
   /** Размер текста — настройка этого устройства, в базу не уходит */
   scale: number
   setScale: (v: number) => void
+  /** Размер и межстрочное текста конспекта — тоже настройка этого устройства */
+  noteSize: number
+  setNoteSize: (v: number) => void
+  noteLeading: NoteLeading
+  setNoteLeading: (v: NoteLeading) => void
   /** Фон с учётом локального выключения — его и рисуем */
   effective: BackgroundSetting
   save: (bg: BackgroundSetting) => Promise<void>
@@ -49,6 +85,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
   })
 
+  const [noteSize, setNoteSizeState] = useState<number>(() =>
+    readLocal(LOCAL_NOTE_SIZE, (raw) => {
+      const n = Number(raw)
+      return NOTE_SIZES.includes(n as (typeof NOTE_SIZES)[number]) ? n : DEFAULT_NOTE_SIZE
+    }),
+  )
+  const [noteLeading, setNoteLeadingState] = useState<NoteLeading>(() =>
+    readLocal(LOCAL_NOTE_LEADING, (raw) => (raw && raw in NOTE_LEADINGS ? (raw as NoteLeading) : DEFAULT_NOTE_LEADING)),
+  )
+
   useEffect(() => {
     fetchBackground().then(setBackground).catch(() => setBackground(DEFAULT_BACKGROUND))
   }, [])
@@ -65,6 +111,21 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.style.setProperty('--app-zoom', String(scale))
   }, [scale])
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--note-size', String(noteSize))
+    document.documentElement.style.setProperty('--note-leading', String(NOTE_LEADINGS[noteLeading].value))
+  }, [noteSize, noteLeading])
+
+  const setNoteSize = useCallback((v: number) => {
+    setNoteSizeState(v)
+    writeLocal(LOCAL_NOTE_SIZE, String(v))
+  }, [])
+
+  const setNoteLeading = useCallback((v: NoteLeading) => {
+    setNoteLeadingState(v)
+    writeLocal(LOCAL_NOTE_LEADING, v)
+  }, [])
 
   const setHidden = useCallback((v: boolean) => {
     setHiddenState(v)
@@ -97,8 +158,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   )
 
   const value = useMemo<SettingsCtx>(
-    () => ({ background, hidden, setHidden, scale, setScale, effective, save, preview: setDraft }),
-    [background, hidden, setHidden, scale, setScale, effective, save],
+    () => ({
+      background, hidden, setHidden, scale, setScale,
+      noteSize, setNoteSize, noteLeading, setNoteLeading,
+      effective, save, preview: setDraft,
+    }),
+    [background, hidden, setHidden, scale, setScale, noteSize, setNoteSize, noteLeading, setNoteLeading, effective, save],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

@@ -51,10 +51,13 @@ function ColorPicker({
   )
 }
 
+/** Что редактор отдаёт по «Сохранить»: локальную версию сразу и запись, которую можно запустить в фоне */
+export type BlockCommit = () => Promise<Block>
+
 export default function BlockEditorCard({
   block,
   isNew = false,
-  onSaved,
+  onSubmit,
   onCancel,
   onDeleted,
   onDirtyChange,
@@ -62,7 +65,12 @@ export default function BlockEditorCard({
   block: Block
   /** Новый блок: строки в базе ещё нет, она появится при первом сохранении */
   isNew?: boolean
-  onSaved: (b: Block) => void
+  /**
+   * «Сохранить»: редактор закрывается сразу, а запись идёт в фоне — на телефоне
+   * ждать ответ сервера с закрытой клавиатурой было долго. Черновик остаётся
+   * до успешной записи, его стирает тот, кто запустил commit.
+   */
+  onSubmit: (local: Block, commit: BlockCommit) => void
   onCancel: () => void
   onDeleted: (id: string) => void
   onDirtyChange?: (dirty: boolean) => void
@@ -70,8 +78,8 @@ export default function BlockEditorCard({
   const [label, setLabel] = useState(block.label)
   const [color, setColor] = useState<TermColor>(block.color)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [replace, setReplace] = useState<{ content: unknown; version: number } | null>(null)
 
   /* ─── Черновик: всё набранное откладывается на устройстве, пока не сохранится ─── */
@@ -133,37 +141,28 @@ export default function BlockEditorCard({
   }
 
   /* ─── Сохранение ─── */
-  const save = async (json: unknown) => {
-    if (saving) return
-    setSaving(true)
-    setError(null)
-    try {
-      const patch = {
-        label: label.trim(),
-        color,
-        content: json as never,
-        content_text: contentToText(json),
-      }
-      const saved = isNew
-        ? await api.createBlock({ node_id: block.node_id, position: block.position, ...patch })
-        : await api.updateBlock(block.id, patch)
-      clearDraft(key)
-      dirtyRef.current = false
-      onDirtyChange?.(false)
-      haptic.ok()
-      onSaved(saved)
-    } catch (e) {
-      haptic.err()
-      // Текст остаётся в редакторе и в черновике — можно просто нажать ещё раз
-      setError(e instanceof Error ? e.message : 'Не сохранилось')
-    } finally {
-      setSaving(false)
+  const save = (json: unknown) => {
+    if (timer.current) clearTimeout(timer.current)
+    const patch = {
+      label: label.trim(),
+      color,
+      content: json as never,
+      content_text: contentToText(json),
     }
+    // Черновик держим до ответа сервера: если запись не пройдёт, текст не потеряется
+    writeDraft(key, { label: patch.label, color, content: json })
+    dirtyRef.current = false
+    onDirtyChange?.(false)
+    haptic.hit()
+    onSubmit({ ...block, ...patch, updated_at: new Date().toISOString() }, () =>
+      isNew
+        ? api.createBlock({ id: block.id === 'new' ? null : block.id, node_id: block.node_id, position: block.position, ...patch })
+        : api.updateBlock(block.id, patch),
+    )
   }
 
   const remove = async () => {
     setSaving(true)
-    setError(null)
     try {
       await api.deleteBlock(block.id, block.node_id)
       clearDraft(key)
@@ -171,7 +170,7 @@ export default function BlockEditorCard({
       onDeleted(block.id)
     } catch (e) {
       setConfirmDelete(false)
-      setError(e instanceof Error ? e.message : 'Не удалось удалить')
+      setDeleteError(e instanceof Error ? e.message : 'Не удалось удалить')
     } finally {
       setSaving(false)
     }
@@ -205,7 +204,7 @@ export default function BlockEditorCard({
       <NoteEditor
         initialContent={block.content}
         saving={saving}
-        error={error}
+        error={deleteError}
         onSave={save}
         onCancel={onCancel}
         onChange={(json) => {

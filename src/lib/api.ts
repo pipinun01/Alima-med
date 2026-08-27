@@ -124,7 +124,7 @@ async function write<T>(run: (attempt: number) => PromiseLike<Result<T>>): Promi
 }
 
 /** Свой id для новой строки: повтор после обрыва связи не создаст дубликат */
-const newId = () =>
+export const newId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : null
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -211,7 +211,12 @@ export async function fetchBlocks(nodeId: string) {
   return (data ?? []) as Block[]
 }
 
-export async function createBlock(block: {
+export async function createBlock({
+  id = newId(),
+  ...block
+}: {
+  /** Id можно задать заранее — так блок показывается в списке ещё до ответа сервера */
+  id?: string | null
   node_id: string
   label: string
   color: TermColor
@@ -219,7 +224,6 @@ export async function createBlock(block: {
   content?: unknown
   content_text?: string | null
 }) {
-  const id = newId()
   const created = await write<Block>(() =>
     id
       ? supabase.from('blocks').upsert({ id, ...block }, { onConflict: 'id' }).select('*').single()

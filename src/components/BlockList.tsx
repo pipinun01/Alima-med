@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import {
-  ChevronDown, ChevronRight, ChevronUp, ChevronsDownUp, ChevronsUpDown, Pencil, Plus,
+  ChevronDown, ChevronRight, ChevronUp, ChevronsDownUp, ChevronsUpDown, CloudUpload, Pencil, Plus,
 } from 'lucide-react'
 import * as api from '@/lib/api'
 import { clearDraft, draftKey } from '@/lib/drafts'
@@ -10,6 +10,7 @@ import { haptic } from '@/lib/telegram'
 import { NoteView } from './NoteView'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Button, ErrorNote, IconButton, Modal, Spinner } from './ui'
+import type { BlockCommit } from './BlockEditor'
 
 /** Редактор тянет TipTap — почти половину кода приложения. Читателям он не нужен, грузим по клику. */
 const BlockEditorCard = lazy(() => import('./BlockEditor'))
@@ -66,6 +67,14 @@ function EditorSkeleton() {
 /** Какой блок редактируется: id существующего или 'new' для ещё не сохранённого */
 type Editing = string | 'new' | null
 
+/** Блок, который не записался: что случилось и был ли он новым (тогда снова создаём, а не правим) */
+interface Failed {
+  message: string
+  isNew: boolean
+}
+
+const byPosition = (list: Block[]) => [...list].sort((a, b) => a.position - b.position)
+
 export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolean }) {
   const [blocks, setBlocks] = useState<Block[]>([])
   const [loading, setLoading] = useState(true)
@@ -76,13 +85,28 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
   /** Куда хотели перейти, когда в редакторе остались несохранённые правки */
   const [pending, setPending] = useState<{ next: Editing } | null>(null)
   const dirty = useRef(false)
+  /** Блоки, которые сейчас пишутся в фоне, и те, что не записались */
+  const [saving, setSaving] = useState<Set<string>>(new Set())
+  const [failed, setFailed] = useState<Map<string, Failed>>(new Map())
+  // Зеркала для load(): тихая перезагрузка не должна стирать то, что ещё не на сервере
+  const localRef = useRef<Block[]>([])
+  const savingRef = useRef(saving)
+  const failedRef = useRef(failed)
+  useEffect(() => {
+    localRef.current = blocks
+    savingRef.current = saving
+    failedRef.current = failed
+  }, [blocks, saving, failed])
 
   const load = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true)
       try {
         const data = await api.fetchBlocks(nodeId)
-        setBlocks(data)
+        const keep = localRef.current.filter(
+          (b) => (savingRef.current.has(b.id) || failedRef.current.has(b.id)) && !data.some((d) => d.id === b.id),
+        )
+        setBlocks(keep.length ? byPosition([...data, ...keep]) : data)
         setLoadError(null)
         if (!silent) {
           // Если выбрано «открывать свёрнутыми» — прячем всё, кроме единственного блока
@@ -103,8 +127,50 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
   useEffect(() => {
     setEditing(null)
     dirty.current = false
+    setSaving(new Set())
+    setFailed(new Map())
     void load()
   }, [load])
+
+  /**
+   * «Сохранить»: блок сразу встаёт в список как прочитанный, редактор закрывается,
+   * а запись идёт в фоне. Не записалось — блок остаётся с ошибкой и кнопкой «повторить».
+   */
+  const submit = (local: Block, commit: BlockCommit, isNew: boolean) => {
+    setBlocks((prev) =>
+      prev.some((b) => b.id === local.id) ? prev.map((b) => (b.id === local.id ? local : b)) : [...prev, local],
+    )
+    setEditing(null)
+    setSaving((prev) => new Set(prev).add(local.id))
+    setFailed((prev) => {
+      const next = new Map(prev)
+      next.delete(local.id)
+      return next
+    })
+    commit()
+      .then((saved) => {
+        setBlocks((prev) =>
+          prev.some((b) => b.id === local.id)
+            ? prev.map((b) => (b.id === local.id ? saved : b))
+            : byPosition([...prev, saved]),
+        )
+        clearDraft(draftKey(isNew ? null : local.id, nodeId))
+        haptic.ok()
+      })
+      .catch((e: unknown) => {
+        haptic.err()
+        setFailed((prev) =>
+          new Map(prev).set(local.id, { message: e instanceof Error ? e.message : 'Не сохранилось', isNew }),
+        )
+      })
+      .finally(() =>
+        setSaving((prev) => {
+          const next = new Set(prev)
+          next.delete(local.id)
+          return next
+        }),
+      )
+  }
 
   // Service worker показал сохранённые блоки, а на сервере они уже другие
   useEffect(
@@ -187,9 +253,9 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
     }
   }
 
-  /** Заготовка нового блока: в базу попадёт только после первого «Сохранить» */
+  /** Заготовка нового блока: в базу попадёт только после первого «Сохранить». Id свой — чтобы показать блок в списке сразу */
   const draftBlock = (): Block => ({
-    id: 'new',
+    id: api.newId() ?? 'new',
     node_id: nodeId,
     label: '',
     color: 'gold',
@@ -247,14 +313,12 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
           <Suspense key={block.id} fallback={<EditorSkeleton />}>
             <BlockEditorCard
               block={block}
+              isNew={failed.get(block.id)?.isNew}
               onCancel={() => go(null)}
               onDirtyChange={(v) => {
                 dirty.current = v
               }}
-              onSaved={(updated) => {
-                setBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)))
-                setEditing(null)
-              }}
+              onSubmit={(local, commit) => submit(local, commit, failed.get(block.id)?.isNew ?? false)}
               onDeleted={(id) => {
                 setBlocks((prev) => prev.filter((b) => b.id !== id))
                 setEditing(null)
@@ -290,6 +354,12 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
                 />
                 <span className="min-w-0 flex-1">
                   <BlockChip label={block.label || 'Без метки'} color={block.color} />
+                  {saving.has(block.id) && (
+                    <span className="ml-2 inline-flex items-center gap-1 align-middle text-[12px] text-[var(--fg-faint)]">
+                      <Spinner className="h-3 w-3" />
+                      Сохраняется…
+                    </span>
+                  )}
                   {collapsed.has(block.id) && previewOf(block) && (
                     <span className="mt-1 block truncate text-[13px] text-[var(--fg-faint)]">
                       {previewOf(block)}
@@ -315,6 +385,15 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
                 </div>
               )}
             </div>
+            {failed.has(block.id) && (
+              <ErrorNote className={collapsed.has(block.id) ? 'mt-2' : 'mb-3'}>
+                Не сохранилось: {failed.get(block.id)!.message}{' '}
+                <button type="button" className="inline-flex items-center gap-1 font-medium underline" onClick={() => go(block.id)}>
+                  <CloudUpload size={13} />
+                  Открыть и повторить
+                </button>
+              </ErrorNote>
+            )}
             {!collapsed.has(block.id) && (
               <ErrorBoundary title="Не получилось показать этот блок">
                 <NoteView content={block.content} />
@@ -333,10 +412,7 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
             onDirtyChange={(v) => {
               dirty.current = v
             }}
-            onSaved={(created) => {
-              setBlocks((prev) => [...prev.filter((b) => b.id !== created.id), created])
-              setEditing(null)
-            }}
+            onSubmit={(local, commit) => submit(local, commit, true)}
             onDeleted={() => setEditing(null)}
           />
         </Suspense>

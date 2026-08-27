@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { EditorContent, useEditor, type Editor } from '@tiptap/react'
 import {
   Bold, Check, Code, Heading2, Heading3, ImagePlus, Italic, Link2, List, ListOrdered,
-  MessageSquareText, Minus, Quote, Redo2, Strikethrough, Tag, Undo2, X,
+  MessageSquareText, Minus, Quote, Redo2, Strikethrough, Tag, Underline, Undo2, X,
 } from 'lucide-react'
 import { buildExtensions } from '@/lib/tiptap-config'
 import { uploadImage } from '@/lib/api'
@@ -104,6 +104,9 @@ function Toolbar({
       </ToolButton>
       <ToolButton label="Курсив" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>
         <Italic size={16} />
+      </ToolButton>
+      <ToolButton label="Подчёркнутый" active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}>
+        <Underline size={16} />
       </ToolButton>
       <ToolButton label="Зачёркнутый" active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}>
         <Strikethrough size={16} />
@@ -331,7 +334,7 @@ export function NoteEditor({
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button onClick={() => void onSave(editor.getJSON())} disabled={saving}>
           {saving ? <Spinner /> : <Check size={16} />}
-          {saving ? 'Сохраняю…' : error ? 'Попробовать ещё раз' : 'Сохранить'}
+          {saving ? 'Сохраняю…' : 'Сохранить'}
         </Button>
         <Button variant="ghost" onClick={onCancel} disabled={saving}>
           Отмена

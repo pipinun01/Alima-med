@@ -179,8 +179,6 @@ body {
 /* ─── Текст конспекта ────────────────────────────────────────────────────── */
 .prose-note {
   font-family: var(--font-read);
-  font-size: 1.0625rem;
-  line-height: 1.75;
   --tw-prose-body: var(--fg);
   --tw-prose-headings: var(--fg);
   --tw-prose-bold: var(--fg);
@@ -218,11 +216,24 @@ body {
 .prose-note :where(table) { display: block; overflow-x: auto; white-space: nowrap; }
 
 /* ─── Редактор и чтение ──────────────────────────────────────────────────── */
-/* Базовый размер .prose-note — 17px. Чтение чуть крупнее: на телефоне так
-   легче глазам. Правка чуть мельче: над клавиатурой помещается больше строк,
-   а общий масштаб (--app-zoom) действует на оба режима одинаково. */
-.prose-note.note-body { font-size: 1.125rem; line-height: 1.8; }
-.prose-note.ProseMirror[contenteditable="true"] { font-size: 0.96875rem; line-height: 1.65; }
+/* Размер и межстрочное текста конспекта задаёт сама читательница в настройках
+   (--note-size в px, --note-leading — множитель; SettingsContext). По умолчанию
+   16px и плотные строки — как в Telegram: длинный конспект так читается быстрее.
+   В редакторе на 1px мельче: над клавиатурой помещается больше строк. */
+:root { --note-size: 16; --note-leading: 1.45; }
+.prose-note.note-body {
+  font-size: calc(var(--note-size) * 1px);
+  line-height: var(--note-leading);
+}
+.prose-note.ProseMirror[contenteditable="true"] {
+  font-size: calc((var(--note-size) - 1) * 1px);
+  line-height: var(--note-leading);
+}
+/* Плотные строки — плотнее и абзацы, иначе текст рассыпается на островки */
+.prose-note :where(p) { margin-block: 0.75em; }
+.prose-note :where(ul, ol) { margin-block: 0.75em; }
+.prose-note :where(li) { margin-block: 0.2em; }
+.prose-note :where(li > p) { margin-block: 0.2em; }
 
 .ProseMirror { outline: none; }
 .ProseMirror[contenteditable="true"] { min-height: 14rem; }
