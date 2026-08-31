@@ -144,7 +144,20 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overscroll-behavior-y: none;
+  /* Без серой вспышки iOS при нажатии и без самовольного укрупнения текста в альбомной ориентации */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   transition: background-color 0.3s var(--ease-out-soft), color 0.3s var(--ease-out-soft);
+}
+
+/* На сенсорных экранах поле ввода мельче 16px заставляет Safari приближать
+   страницу при фокусе — и после клавиатуры она остаётся «раздутой».
+   Поэтому на телефоне все поля не мельче 16px; десктоп не трогаем. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="range"]), select, textarea {
+    font-size: 16px !important;
+  }
 }
 
 ::selection { background: rgb(var(--accent-glow) / 0.22); }
@@ -229,6 +242,12 @@ body {
   font-size: calc((var(--note-size) - 1) * 1px);
   line-height: var(--note-leading);
 }
+/* Редактор — тоже поле ввода: мельче 16px Safari на телефоне приблизит страницу при фокусе */
+@media (hover: none) and (pointer: coarse) {
+  .prose-note.ProseMirror[contenteditable="true"] {
+    font-size: max(16px, calc((var(--note-size) - 1) * 1px));
+  }
+}
 /* Плотные строки — плотнее и абзацы, иначе текст рассыпается на островки */
 .prose-note :where(p) { margin-block: 0.75em; }
 .prose-note :where(ul, ol) { margin-block: 0.75em; }
@@ -253,6 +272,13 @@ body {
    окон остаются во весь экран и не съезжают. */
 :root { --app-zoom: 1; }
 .app-zoom { zoom: var(--app-zoom); }
+
+/* Липнет ровно под шапкой (3.75rem + чёлка iPhone). Элемент лежит внутри
+   app-zoom, поэтому отступ чёлки делится на масштаб — та же математика,
+   что у высоты сайдбара в AppShell. */
+.under-header {
+  top: calc(3.75rem + env(safe-area-inset-top, 0px) / var(--app-zoom, 1));
+}
 
 /* ─── Утилиты ────────────────────────────────────────────────────────────── */
 .scrollbar-slim::-webkit-scrollbar { width: 7px; height: 7px; }
@@ -283,5 +309,12 @@ body {
   from { opacity: 0; transform: scale(0.96) translateY(6px); }
   to   { opacity: 1; transform: none; }
 }
-.animate-fade-up { animation: fade-up 0.28s var(--ease-out-soft) both; }
-.animate-pop-in  { animation: pop-in 0.2s var(--ease-out-soft) both; }
+@keyframes sheet-up {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: none; }
+}
+/* @utility вместо простых классов — чтобы работали варианты вроде max-sm: */
+@utility animate-fade-up { animation: fade-up 0.28s var(--ease-out-soft) both; }
+@utility animate-pop-in  { animation: pop-in 0.2s var(--ease-out-soft) both; }
+/* Шторка на телефоне выезжает снизу — как системные окна iOS */
+@utility animate-sheet-up { animation: sheet-up 0.32s var(--ease-out-soft) both; }

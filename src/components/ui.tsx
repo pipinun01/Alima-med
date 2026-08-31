@@ -6,8 +6,9 @@ type Variant = 'primary' | 'ghost' | 'soft' | 'danger' | 'outline'
 type Size = 'sm' | 'md' | 'lg'
 
 const VARIANTS: Record<Variant, string> = {
+  // Градиент темы + мягкое свечение в цвет акцента — главная кнопка видна сразу
   primary:
-    'bg-[var(--accent)] text-[var(--accent-fg)] hover:brightness-110 active:brightness-95 shadow-[var(--shadow-sm)]',
+    '[background:var(--grad)] text-[var(--accent-fg)] hover:brightness-110 active:brightness-95 shadow-[0_6px_16px_-6px_rgb(var(--accent-glow)/0.55)]',
   soft: 'bg-[var(--accent-soft)] text-[var(--accent)] hover:brightness-[0.97]',
   ghost: 'text-[var(--fg-soft)] hover:bg-[var(--bg-hover)] hover:text-[var(--fg)]',
   outline:
@@ -173,7 +174,7 @@ export function Modal({
       />
       <div
         ref={ref}
-        className={`app-zoom animate-pop-in relative w-full ${width} rounded-t-3xl sm:rounded-3xl
+        className={`app-zoom max-sm:animate-sheet-up sm:animate-pop-in relative w-full ${width} rounded-t-3xl sm:rounded-3xl
           border border-[var(--line)] bg-[var(--bg-card)] shadow-[var(--shadow-lg)]
           overflow-y-auto scrollbar-slim
           pb-[max(1.25rem,env(safe-area-inset-bottom))]`}
@@ -181,6 +182,12 @@ export function Modal({
         style={{ maxHeight: 'calc(92vh / var(--app-zoom))' }}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-[var(--line)] bg-[var(--bg-card)] px-5 py-4">
+          {/* «Ручка» шторки — на телефоне окно выглядит как системное */}
+          <span
+            className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full
+              bg-[var(--line-strong)] sm:hidden"
+            aria-hidden
+          />
           <h2 className="font-display text-[17px] font-semibold tracking-tight">{title}</h2>
           <IconButton label="Закрыть" onClick={onClose}>
             <X size={18} />

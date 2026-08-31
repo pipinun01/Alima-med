@@ -15,7 +15,6 @@ const STORAGE_KEY = 'lichnoe-info-theme'
 interface ThemeCtx {
   theme: Theme
   setTheme: (t: Theme) => void
-  cycle: () => void
 }
 
 const Ctx = createContext<ThemeCtx | null>(null)
@@ -46,11 +45,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const cycle = useCallback(() => {
-    setTheme(THEMES[(THEMES.indexOf(readInitial()) + 1) % THEMES.length])
-  }, [setTheme])
-
-  const value = useMemo(() => ({ theme, setTheme, cycle }), [theme, setTheme, cycle])
+  const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 

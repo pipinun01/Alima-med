@@ -395,6 +395,41 @@ as $$
    limit 100;
 $$;
 
+-- ─── Перестановка: новый порядок применяется одним запросом ────────────────
+--  Стрелки «выше/ниже» меняют позиции пары записей. Раньше это были отдельные
+--  UPDATE по строке, и обрыв связи на середине оставлял порядок полуприменённым.
+--  RLS действует и внутри функции: не редактору update не изменит ни одной
+--  строки, поэтому возвращается число изменённых строк — клиент его сверяет.
+--  Триггеры touch_node / bump_node_from_block при смене одного лишь position
+--  updated_at по-прежнему не трогают.
+create or replace function reorder_nodes(pairs jsonb)
+returns int
+language sql
+as $$
+  with changed as (
+    update nodes n
+       set position = p.position
+      from jsonb_to_recordset(pairs) as p(id uuid, position int)
+     where n.id = p.id
+    returning 1
+  )
+  select count(*)::int from changed;
+$$;
+
+create or replace function reorder_blocks(pairs jsonb)
+returns int
+language sql
+as $$
+  with changed as (
+    update blocks b
+       set position = p.position
+      from jsonb_to_recordset(pairs) as p(id uuid, position int)
+     where b.id = p.id
+    returning 1
+  )
+  select count(*)::int from changed;
+$$;
+
 -- ─── Оформление: фон приложения (одна строка на всё приложение) ────────────
 create table if not exists app_settings (
   id         int primary key default 1 check (id = 1),

@@ -216,6 +216,7 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
         return copy
       })
     }
+    if (next === 'new') setNewDraft(makeDraft())
     setEditing(next)
   }
 
@@ -253,8 +254,12 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
     }
   }
 
-  /** Заготовка нового блока: в базу попадёт только после первого «Сохранить». Id свой — чтобы показать блок в списке сразу */
-  const draftBlock = (): Block => ({
+  /**
+   * Заготовка нового блока: в базу попадёт только после первого «Сохранить».
+   * Id свой — чтобы показать блок в списке сразу. Создаётся один раз при
+   * открытии редактора (в go): id и позиция не должны меняться от перерисовок.
+   */
+  const makeDraft = (): Block => ({
     id: api.newId() ?? 'new',
     node_id: nodeId,
     label: '',
@@ -265,6 +270,7 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
     created_at: '',
     updated_at: '',
   })
+  const [newDraft, setNewDraft] = useState<Block | null>(null)
 
   if (loading) {
     return (
@@ -403,10 +409,10 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
         ),
       )}
 
-      {editing === 'new' && (
+      {editing === 'new' && newDraft && (
         <Suspense fallback={<EditorSkeleton />}>
           <BlockEditorCard
-            block={draftBlock()}
+            block={newDraft}
             isNew
             onCancel={() => go(null)}
             onDirtyChange={(v) => {

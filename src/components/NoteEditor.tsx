@@ -87,7 +87,7 @@ function Toolbar({
 
   return (
     <div
-      className="glass sticky top-15 z-20 -mx-1 flex flex-wrap items-center gap-0.5
+      className="glass under-header sticky z-20 -mx-1 flex flex-wrap items-center gap-0.5
         rounded-xl border border-[var(--line)] px-1.5 py-1.5 shadow-[var(--shadow-sm)]"
     >
       <ToolButton label="Отменить" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>

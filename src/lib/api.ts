@@ -187,13 +187,46 @@ export async function deleteNode(id: string) {
   invalidateData('/rest/v1/nodes')
 }
 
+/** В базе ещё нет функций reorder_* (старая схема) — тогда падаем на путь по строке за запрос */
+const isMissingFunction = (e: ApiError) =>
+  e.code === 'PGRST202' || statusOf(e) === 404 || /could not find the function/i.test(e.message ?? '')
+
+/**
+ * Новый порядок пишется одной RPC: либо применяется целиком, либо нет.
+ * Иначе обрыв связи на середине списка оставил бы порядок полуприменённым —
+ * на экране откатился бы, а на сервере остался бы ни старый, ни новый.
+ */
+async function reorderRows(
+  fn: 'reorder_nodes' | 'reorder_blocks',
+  table: 'nodes' | 'blocks',
+  items: { id: string; position: number }[],
+) {
+  let missing = false
+  const changed = await write<number | null>(async () => {
+    const { data, error } = await supabase.rpc(fn, { pairs: items })
+    if (error && isMissingFunction(error)) {
+      missing = true
+      return { data: null, error: null }
+    }
+    return { data: data as number | null, error }
+  })
+
+  if (missing) {
+    await Promise.all(
+      items.map((i) =>
+        write(() => supabase.from(table).update({ position: i.position }).eq('id', i.id).select('id').single()),
+      ),
+    )
+    return
+  }
+  // RLS внутри функции не даёт не-редактору изменить ни строки — сверяем счётчик
+  if ((changed ?? 0) < items.length)
+    throw new Error('Порядок не записался: нет прав редактора или сессия устарела — выйдите и войдите заново')
+}
+
 export async function reorderNodes(items: { id: string; position: number }[]) {
   if (!items.length) return
-  await Promise.all(
-    items.map((i) =>
-      write(() => supabase.from('nodes').update({ position: i.position }).eq('id', i.id).select('id').single()),
-    ),
-  )
+  await reorderRows('reorder_nodes', 'nodes', items)
   invalidateData('/rest/v1/nodes')
 }
 
@@ -253,11 +286,7 @@ export async function deleteBlock(id: string, nodeId: string) {
 
 export async function reorderBlocks(nodeId: string, items: { id: string; position: number }[]) {
   if (!items.length) return
-  await Promise.all(
-    items.map((i) =>
-      write(() => supabase.from('blocks').update({ position: i.position }).eq('id', i.id).select('id').single()),
-    ),
-  )
+  await reorderRows('reorder_blocks', 'blocks', items)
   invalidateData('/rest/v1/blocks', nodeId)
 }
 

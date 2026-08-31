@@ -128,7 +128,7 @@ export function BranchTabs({
                 transition-colors duration-150
                 ${
                   selected
-                    ? 'bg-[var(--accent)] text-[var(--accent-fg)] shadow-[var(--shadow-sm)]'
+                    ? '[background:var(--grad)] text-[var(--accent-fg)] shadow-[0_5px_14px_-6px_rgb(var(--accent-glow)/0.5)]'
                     : 'border border-[var(--line)] bg-[var(--bg-card)] text-[var(--fg-soft)] hover:bg-[var(--bg-hover)]'
                 }`}
             >

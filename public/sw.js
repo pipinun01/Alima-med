@@ -15,7 +15,7 @@
  * При смене VERSION старые кэши удаляются целиком.
  */
 
-const VERSION = 'v2'
+const VERSION = 'v3'
 const SHELL = `shell-${VERSION}`
 const DATA = `data-${VERSION}`
 const MEDIA = `media-${VERSION}`
@@ -101,12 +101,22 @@ async function dataStaleWhileRevalidate(request, event) {
   return update
 }
 
-/** Переход по адресу: сеть, но не дольше таймаута, если есть сохранённая оболочка */
+/**
+ * Переход по адресу: сеть, но не дольше таймаута, если есть сохранённая оболочка.
+ * Оболочка у всех адресов одна и та же (SPA), поэтому храним единственную копию
+ * под ключом /index.html — иначе каждая открытая карточка добавляла бы в кэш
+ * ещё одну копию index.html, и кэш рос бы без предела.
+ */
 async function navigation(request, event) {
-  const network = fetch(request).then((response) => put(SHELL, request, response))
-  const fallback = async () => (await match(request)) || (await caches.match('/index.html')) || null
+  const network = fetch(request).then(async (response) => {
+    if (response && response.ok) {
+      const cache = await caches.open(SHELL)
+      await cache.put('/index.html', response.clone())
+    }
+    return response
+  })
 
-  const cached = await fallback()
+  const cached = await caches.match('/index.html')
   if (!cached) return network.catch(() => Response.error())
 
   let timer

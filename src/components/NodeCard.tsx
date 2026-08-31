@@ -51,8 +51,8 @@ export function NodeCard({ node, index = 0 }: { node: TreeNode; index?: number }
 
       <div className="flex items-start gap-3">
         <span
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--bg-subtle)]
-            text-[15px] text-[var(--fg-soft)]"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--accent-soft)]
+            text-[15px] text-[var(--accent)]"
         >
           {node.icon || (isCard ? <FileText size={16} /> : <Layers size={16} />)}
         </span>
