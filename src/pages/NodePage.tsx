@@ -11,6 +11,7 @@ import { NodeCard } from '@/components/NodeCard'
 import { BlockList } from '@/components/BlockList'
 import { BranchTabs } from '@/components/BranchTabs'
 import { NodeFormModal, type NodeFormValue } from '@/components/NodeFormModal'
+import { SurpriseModal, surpriseAlreadyShown } from '@/components/SurpriseModal'
 import { Button, EmptyState, ErrorNote, IconButton, Modal, Spinner } from '@/components/ui'
 import { KIND_META, type NodeKind } from '@/lib/types'
 
@@ -26,6 +27,7 @@ export function NodePage() {
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [surprise, setSurprise] = useState(false)
 
   const node = byId.get(id)
   const chain = useMemo(() => pathTo(byId, id), [byId, id])
@@ -98,6 +100,8 @@ export function NodePage() {
       })
       setAddParent(null)
       if (created.kind === 'card' || addParent !== id) navigate(`/n/${created.id}`)
+      // Сюрприз: один раз, когда на этом устройстве впервые создали ветку
+      if (created.kind === 'branch' && !surpriseAlreadyShown()) setSurprise(true)
     } finally {
       setSaving(false)
     }
@@ -229,6 +233,8 @@ export function NodePage() {
           )}
         </section>
       )}
+
+      <SurpriseModal open={surprise} onClose={() => setSurprise(false)} />
 
       <NodeFormModal
         open={addParent !== null}
