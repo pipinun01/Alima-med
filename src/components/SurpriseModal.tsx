@@ -9,7 +9,7 @@ import { haptic } from '@/lib/telegram'
  * Показ запоминается на устройстве, чтобы окно не выскакивало снова.
  */
 
-const SURPRISE_URL = 'https://youtube.com/shorts/4nTxQkX7gCU?si=RBDUc2uy7xewBUpe'
+const SURPRISE_URL = 'https://www.youtube.com/shorts/qOcKcLlCL2E'
 
 const SHOWN_KEY = 'lichnoe-info-surprise-1'
 
