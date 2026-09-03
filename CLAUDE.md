@@ -16,6 +16,8 @@
 npm run dev      # разработка на :5173
 npm run build    # tsc -b + vite build — гонять перед завершением задачи
 npm run lint     # oxlint
+
+node scripts/backup.mjs   # копия таблиц и картинок хранилища, см. docs/SETUP.md
 ```
 
 Node ставится через nvm: `export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"`.
@@ -56,7 +58,11 @@ Node ставится через nvm: `export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/
   worker регистрируется только в собранной версии (`import.meta.env.PROD`).
   Данные он отдаёт «сохранённое сразу, свежее в фоне» и шлёт `DATA_UPDATED`,
   когда свежее отличается; приложение разговаривает с ним только через
-  `lib/sw-client.ts` (`askWorker`, `invalidateData`, `onDataUpdated`).
+  `lib/sw-client.ts` (`askWorker`, `invalidateData`, `onDataUpdated`). Любое
+  кэшируемое чтение нуждается в подписке на `onDataUpdated`, иначе страница
+  будет показывать прошлую версию до второй перезагрузки: так уже случилось с
+  правами редактора, которые выдаются не из этого браузера. Сейчас подписаны
+  дерево, блоки, настройки и `AuthContext`.
 - **Картинки и внешние стили — с `crossorigin`.** Без него ответ «непрозрачный»
   и в кэш не попадает. Supabase Storage, Google Fonts и telegram.org отдают
   `Access-Control-Allow-Origin: *`, проверено.

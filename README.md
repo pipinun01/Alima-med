@@ -47,7 +47,7 @@ npm run dev
 |---|---|
 | [docs/SETUP.md](docs/SETUP.md) | Установка с нуля: Supabase, ключи, редактор, деплой, Telegram Mini App |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Как устроены данные и код, где что менять |
-| [docs/CONTENT-GUIDE.md](docs/CONTENT-GUIDE.md) | Как вести конспекты: структура, метки, фото, импорт старых записей |
+| [docs/CONTENT-GUIDE.md](docs/CONTENT-GUIDE.md) | Как вести конспекты: вход и пароль, структура, метки, фото, импорт старых записей |
 | [CLAUDE.md](CLAUDE.md) | Памятка для Claude Code при работе с этим репозиторием |
 
 ## Стек
@@ -61,4 +61,6 @@ npm run dev       # разработка, http://localhost:5173
 npm run build     # проверка типов + сборка в dist/
 npm run preview   # локальный просмотр собранной версии
 npm run lint      # oxlint
+
+node scripts/backup.mjs   # копия базы и фотографий в ~/lichnoe-info-backups/<дата>
 ```
