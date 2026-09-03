@@ -22,7 +22,7 @@ function StatusBar() {
   return (
     <div
       role="alert"
-      className="app-zoom mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5
+      className="shell-zoom mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5
         text-[13.5px] text-[var(--danger)] sm:px-5"
       style={{ background: 'var(--danger-soft)' }}
     >
@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className="glass sticky top-0 z-40 border-b border-[var(--line)]"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <div className="app-zoom mx-auto flex h-15 max-w-[1400px] items-center gap-2 px-3 py-3 sm:px-5">
+        <div className="shell-zoom mx-auto flex h-15 max-w-[1400px] items-center gap-1.5 px-2.5 py-3 sm:gap-2 sm:px-5">
           <IconButton label="Меню" className="lg:hidden" onClick={() => setDrawer(true)}>
             <Menu size={19} />
           </IconButton>
@@ -119,11 +119,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Settings2 size={18} />
           </IconButton>
 
+          {/* На самых узких телефонах шести кнопкам не хватает места — там панель редактора живёт в шторке */}
           {isEditor && (
             <IconButton
               label="Панель редактора"
               onClick={() => navigate('/edit')}
-              className="text-[var(--accent)]"
+              className="text-[var(--accent)] max-[399px]:hidden"
             >
               <PenLine size={18} />
             </IconButton>
@@ -149,7 +150,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             scrollbar-slim border-r border-[var(--line)] py-3 lg:block"
           style={{
             height:
-              'calc((100dvh - 3.75rem * var(--app-zoom) - env(safe-area-inset-top, 0px)) / var(--app-zoom))',
+              'calc((100dvh - 3.75rem * var(--shell-zoom) - env(safe-area-inset-top, 0px)) / var(--app-zoom))',
           }}
         >
           <Sidebar />
@@ -170,7 +171,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-label="Навигация">
           <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px] animate-fade-up" onClick={() => setDrawer(false)} />
           <div
-            className="app-zoom animate-fade-up absolute inset-y-0 left-0 flex w-[86%] max-w-sm flex-col
+            className="shell-zoom animate-fade-up absolute inset-y-0 left-0 flex w-[86%] max-w-sm flex-col
               border-r border-[var(--line)] bg-[var(--bg-card)] shadow-[var(--shadow-lg)]"
             style={{ paddingTop: 'env(safe-area-inset-top)' }}
           >
@@ -185,6 +186,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] px-4 py-3">
               <ThemeSwitcher />
+              {isEditor && (
+                <Link to="/edit" className="text-[13px] text-[var(--accent)] hover:brightness-90">
+                  Панель редактора
+                </Link>
+              )}
               <Link
                 to={session ? '/profile' : '/login'}
                 className="text-[13px] text-[var(--fg-faint)] hover:text-[var(--fg)]"

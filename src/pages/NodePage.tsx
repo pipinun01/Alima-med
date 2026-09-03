@@ -136,12 +136,14 @@ export function NodePage() {
 
       {/* ─── Заголовок ─────────────────────────────────────────────────────── */}
       <header className="animate-fade-up mt-4 flex items-start gap-3">
-        {node.icon && <span className="mt-1 text-[26px] leading-none">{node.icon}</span>}
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[var(--fg-faint)]">
             {meta.one}
           </p>
-          <h1 className="mt-0.5 font-display text-[clamp(1.55rem,4.2vw,2.25rem)] font-bold leading-[1.15] tracking-[-0.025em]">
+          {/* Значок — внутри заголовка, а не отдельной колонкой: на телефоне при крупном
+              шрифте два эмодзи отжимали название в узкий столбик и рвали слова */}
+          <h1 className="mt-0.5 break-words font-display text-[clamp(1.55rem,4.2vw,2.25rem)] font-bold leading-[1.15] tracking-[-0.025em]">
+            {node.icon && <span className="mr-2 font-sans font-normal">{node.icon}</span>}
             {node.title}
           </h1>
           {node.subtitle && (

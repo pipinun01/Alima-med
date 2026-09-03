@@ -51,10 +51,11 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
 
-  // Вошедшему здесь делать нечего — всё про аккаунт в профиле. Пока сессия
-  // читается из памяти, ничего не рисуем, иначе форма мигнёт перед переходом
+  // Вошедшему здесь делать нечего — всё про аккаунт в профиле, а после входа
+  // ждут конспекты. Пока сессия читается из памяти, ничего не рисуем, иначе
+  // форма мигнёт перед переходом
   if (loading) return null
-  if (session) return <Navigate to="/profile" replace />
+  if (session) return <Navigate to="/" replace />
 
   const switchMode = (next: Mode) => {
     setMode(next)
@@ -64,7 +65,7 @@ export function LoginPage() {
 
   const submitIn = async () => {
     await signIn(email.trim(), password)
-    navigate('/profile')
+    navigate('/')
   }
 
   /**
@@ -89,15 +90,16 @@ export function LoginPage() {
       navigate('/')
       return
     }
-    // Без кода или с неверным — в профиль: там поле для кода ждёт своего часа
-    navigate('/profile', {
-      replace: true,
-      state: {
-        notice: invite.trim()
-          ? 'Аккаунт создан, но код не подошёл. Проверьте фразу и попробуйте ещё раз ниже.'
-          : 'Аккаунт создан. Права редактора появятся, когда введёте код приглашения.',
-      },
-    })
+    // Код ввели, но он не подошёл — в профиль: там же поле, чтобы попробовать снова
+    if (invite.trim()) {
+      navigate('/profile', {
+        replace: true,
+        state: { notice: 'Аккаунт создан, но код не подошёл. Проверьте фразу и попробуйте ещё раз ниже.' },
+      })
+      return
+    }
+    // Без кода — просто читатель, идём к конспектам
+    navigate('/', { replace: true })
   }
 
   const submitReset = async () => {
@@ -128,7 +130,7 @@ export function LoginPage() {
   const isReset = mode === 'reset'
 
   return (
-    <div className="mx-auto max-w-md px-4 py-16 sm:px-8">
+    <div className="mx-auto max-w-md px-4 py-10 sm:px-8 sm:py-16">
       <form
         onSubmit={submit}
         className="animate-fade-up rounded-[var(--radius-card)] border border-[var(--line)]

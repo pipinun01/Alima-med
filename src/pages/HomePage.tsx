@@ -67,7 +67,7 @@ export function HomePage() {
           <Sparkles size={12} className="text-[var(--accent)]" />
           Учебная база конспектов
         </p>
-        <h1 className="font-display text-[clamp(2rem,6vw,3.25rem)] font-bold leading-[1.08] tracking-[-0.03em]">
+        <h1 className="font-display text-[clamp(1.75rem,7.5vw,3.25rem)] font-bold leading-[1.08] tracking-[-0.03em]">
           Главы, темы, ветки{' '}
           <br className="max-sm:hidden" />
           <span className="text-grad">и карточки в одной структуре</span>
@@ -78,18 +78,16 @@ export function HomePage() {
         </p>
 
         <div className="mt-7 flex flex-wrap items-center gap-2.5">
+          {/* max-w-full + truncate: длинное название главы при крупном шрифте не выталкивает кнопку за экран */}
           {roots[0] && (
-            <Button onClick={() => navigate(`/n/${roots[0].id}`)}>
-              <Library size={16} />
-              Открыть «{roots[0].title}»
+            <Button className="max-w-full" onClick={() => navigate(`/n/${roots[0].id}`)}>
+              <Library size={16} className="shrink-0" />
+              <span className="truncate">Открыть «{roots[0].title}»</span>
             </Button>
           )}
-          <Button
-            variant="outline"
-            onClick={search.open}
-          >
-            <Search size={16} />
-            Найти анализ или термин
+          <Button variant="outline" className="max-w-full" onClick={search.open}>
+            <Search size={16} className="shrink-0" />
+            <span className="truncate">Найти анализ или термин</span>
           </Button>
           {isEditor && (
             <Button variant="soft" onClick={() => setAdding(true)}>

@@ -17,7 +17,8 @@ export function Logo() {
           />
         </svg>
       </span>
-      <span className="whitespace-nowrap font-display text-[15.5px] font-semibold leading-none tracking-tight sm:text-[17px]">
+      {/* На экранах уже 340px (старые iPhone SE) подпись не помещается рядом с иконками шапки */}
+      <span className="whitespace-nowrap font-display text-[15.5px] font-semibold leading-none tracking-tight max-[339px]:hidden sm:text-[17px]">
         Личное<span className="text-grad"> инфо</span>
       </span>
     </Link>
