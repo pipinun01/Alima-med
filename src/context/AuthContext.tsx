@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { Session } from '@supabase/supabase-js'
 import { supabase, isConfigured } from '@/lib/supabase'
 import { checkIsEditor } from '@/lib/api'
+import { onDataUpdated } from '@/lib/sw-client'
 
 interface AuthCtx {
   session: Session | null
@@ -68,6 +69,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setIsEditor(await checkIsEditor(userId))
   }, [userId])
+
+  /**
+   * Права могли выдать не отсюда: код приглашения ввели на другом устройстве
+   * или строку в `editors` добавили руками через SQL. Ответ «этот аккаунт не
+   * редактор» при этом лежит в офлайн-кэше, и без подписки приложение
+   * показывало бы читательский вид до второй перезагрузки.
+   */
+  useEffect(
+    () => onDataUpdated((url) => {
+      if (url.includes('/rest/v1/editors')) void refreshEditor()
+    }),
+    [refreshEditor],
+  )
 
   const value = useMemo<AuthCtx>(
     () => ({
