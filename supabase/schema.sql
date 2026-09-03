@@ -26,6 +26,66 @@ as $$
   select exists (select 1 from editors where user_id = auth.uid());
 $$;
 
+-- ─── Код-приглашение: аккаунт сам получает права редактора ─────────────────
+--  Читать базу может кто угодно без входа, поэтому открытая регистрация
+--  сделала бы редактором любого прохожего. Вместо этого при регистрации
+--  спрашивается секретная фраза: совпала — аккаунт добавляется в editors,
+--  не совпала — остаётся обычным читателем.
+--
+--  Задать фразу (и потом сменить) — отсюда же, из SQL Editor:
+--    update editor_invite set code = 'длинная-фраза-которую-легко-продиктовать';
+--
+--  Когда приглашение больше не нужно, код стирается, и claim_editor
+--  перестаёт срабатывать вовсе:
+--    update editor_invite set code = null;
+create table if not exists editor_invite (
+  id         int primary key default 1 check (id = 1),
+  code       text,
+  updated_at timestamptz not null default now()
+);
+
+insert into editor_invite (id) values (1) on conflict (id) do nothing;
+
+--  RLS включён, а политик нет ни одной: через API строку не прочитать и не
+--  изменить даже редактору. Код видит только claim_editor — она security
+--  definer и потому RLS обходит.
+alter table editor_invite enable row level security;
+
+--  Возвращает true — код подошёл, права выданы; false — код неверный.
+--  Бросает ошибку, если не выполнен вход или код в базе не задан.
+drop function if exists claim_editor(text);
+create function claim_editor(p_code text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  expected text;
+begin
+  if auth.uid() is null then
+    raise exception 'Сначала нужно войти в аккаунт';
+  end if;
+
+  select nullif(btrim(code), '') into expected from editor_invite where id = 1;
+  if expected is null then
+    raise exception 'Код приглашения не задан в базе — задайте его в SQL Editor';
+  end if;
+
+  if btrim(coalesce(p_code, '')) <> expected then
+    return false;
+  end if;
+
+  insert into editors (user_id) values (auth.uid())
+  on conflict (user_id) do nothing;
+  return true;
+end;
+$$;
+
+--  Звать её может только вошедший: анониму выдавать нечего.
+revoke all on function claim_editor(text) from public;
+grant execute on function claim_editor(text) to authenticated;
+
 -- ─── Дерево: глава → тема → ветка → карточка ───────────────────────────────
 --  Родитель хранится ссылкой, поэтому глубина технически не ограничена:
 --  если однажды понадобится пятый уровень, менять схему не придётся.

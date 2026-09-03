@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase, isConfigured } from '@/lib/supabase'
 import { checkIsEditor } from '@/lib/api'
@@ -8,7 +8,15 @@ interface AuthCtx {
   isEditor: boolean
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
+  /**
+   * Регистрация. true — вход уже выполнен; false — проект Supabase требует
+   * подтвердить почту письмом, и сессии пока нет.
+   */
+  signUp: (email: string, password: string) => Promise<boolean>
   signOut: () => Promise<void>
+  changePassword: (password: string) => Promise<void>
+  /** Перечитать права — после того, как ввели код приглашения */
+  refreshEditor: () => Promise<void>
 }
 
 const Ctx = createContext<AuthCtx | null>(null)
@@ -53,20 +61,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [userId])
 
+  const refreshEditor = useCallback(async () => {
+    if (!userId) {
+      setIsEditor(false)
+      return
+    }
+    setIsEditor(await checkIsEditor(userId))
+  }, [userId])
+
   const value = useMemo<AuthCtx>(
     () => ({
       session,
       isEditor,
       loading,
+      refreshEditor,
       signIn: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
       },
+      signUp: async (email, password) => {
+        const { data, error } = await supabase.auth.signUp({ email, password })
+        if (error) throw error
+        return Boolean(data.session)
+      },
       signOut: async () => {
         await supabase.auth.signOut()
       },
+      changePassword: async (password) => {
+        const { error } = await supabase.auth.updateUser({ password })
+        if (error) throw error
+      },
     }),
-    [session, isEditor, loading],
+    [session, isEditor, loading, refreshEditor],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

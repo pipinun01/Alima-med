@@ -72,6 +72,29 @@ export function describeError(e: unknown): string {
   return raw || 'Неизвестная ошибка'
 }
 
+/** Вход, регистрация и смена пароля отвечают по-английски — переводим на человеческий */
+const AUTH_MESSAGES: [RegExp, string][] = [
+  [/invalid login credentials/i, 'Неверная почта или пароль'],
+  [/email not confirmed/i, 'Почта не подтверждена — откройте ссылку из письма и войдите ещё раз'],
+  [/(user )?already registered|already been registered/i, 'Такая почта уже зарегистрирована — войдите вместо регистрации'],
+  [/password should be at least (\d+)/i, 'Пароль слишком короткий — нужно минимум $1 символов'],
+  [/new password should be different/i, 'Новый пароль совпадает со старым'],
+  [/weak password/i, 'Пароль слишком простой — добавьте символов'],
+  [/signups? (not allowed|is disabled)/i, 'Регистрация выключена в Supabase: Authentication → Providers → Email'],
+  [/unable to validate email|invalid email|invalid format/i, 'Неверный формат почты'],
+  [/for security purposes.*?(\d+) second/i, 'Слишком часто — подождите $1 секунд и попробуйте снова'],
+  [/email rate limit|over_email_send_rate_limit/i, 'Слишком много писем за раз — подождите немного'],
+]
+
+export function describeAuthError(e: unknown): string {
+  const raw = ((e ?? {}) as ApiError).message?.trim() ?? ''
+  for (const [pattern, text] of AUTH_MESSAGES) {
+    const found = raw.match(pattern)
+    if (found) return text.replace('$1', found[1] ?? '')
+  }
+  return describeError(e)
+}
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
@@ -350,6 +373,18 @@ export async function uploadImage(file: File): Promise<UploadedImage> {
     width: prepared.width,
     height: prepared.height,
   }
+}
+
+/**
+ * Код приглашения. Совпал с тем, что лежит в базе, — аккаунт добавляется в
+ * editors и сразу получает права. Возвращает false, если код неверный;
+ * бросает, если код в базе не задан или не выполнен вход.
+ */
+export async function claimEditor(code: string): Promise<boolean> {
+  const granted = await write<boolean>(() => supabase.rpc('claim_editor', { p_code: code }))
+  // Ответ «этот аккаунт не редактор» мог осесть в офлайн-кэше — забываем его
+  invalidateData('/rest/v1/editors')
+  return Boolean(granted)
 }
 
 export async function checkIsEditor(userId: string) {

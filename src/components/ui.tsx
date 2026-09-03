@@ -105,6 +105,19 @@ export function ErrorNote({ children, className = '' }: { children: React.ReactN
   )
 }
 
+/** То же, что ErrorNote, но спокойным цветом: «получилось», «проверьте почту» */
+export function InfoNote({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  if (!children) return null
+  return (
+    <p
+      role="status"
+      className={`rounded-xl bg-[var(--accent-soft)] px-3 py-2.5 text-[13px] leading-relaxed text-[var(--accent)] ${className}`}
+    >
+      {children}
+    </p>
+  )
+}
+
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 export function Modal({
