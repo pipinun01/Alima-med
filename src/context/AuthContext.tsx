@@ -8,6 +8,12 @@ interface AuthCtx {
   session: Session | null
   isEditor: boolean
   loading: boolean
+  /**
+   * Человек пришёл по ссылке «восстановить пароль» из письма: сессия уже
+   * есть, но пароля он не знает — страница профиля просит задать новый, не
+   * спрашивая текущий. Сбрасывается после смены пароля.
+   */
+  recovery: boolean
   signIn: (email: string, password: string) => Promise<void>
   /**
    * Регистрация. true — вход уже выполнен; false — проект Supabase требует
@@ -15,7 +21,21 @@ interface AuthCtx {
    */
   signUp: (email: string, password: string) => Promise<boolean>
   signOut: () => Promise<void>
-  changePassword: (password: string) => Promise<void>
+  /** Отозвать сессии на всех устройствах, включая это */
+  signOutEverywhere: () => Promise<void>
+  /**
+   * Смена пароля. Если передан `current`, он сначала проверяется входом:
+   * Supabase сам текущий пароль не спрашивает, а без проверки любой, кто
+   * сел за незаблокированный телефон, сменил бы пароль и забрал аккаунт.
+   */
+  changePassword: (password: string, current?: string) => Promise<void>
+  /**
+   * Смена почты. Supabase шлёт письма и на старый адрес, и на новый; почта
+   * меняется, когда подтвердят оба. До этого новая видна в `user.new_email`.
+   */
+  changeEmail: (email: string) => Promise<void>
+  /** Письмо со ссылкой на сброс пароля; ссылка ведёт на страницу профиля */
+  resetPassword: (email: string) => Promise<void>
   /** Перечитать права — после того, как ввели код приглашения */
   refreshEditor: () => Promise<void>
 }
@@ -26,6 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [isEditor, setIsEditor] = useState(false)
   const [loading, setLoading] = useState(isConfigured)
+  const [recovery, setRecovery] = useState(false)
 
   useEffect(() => {
     if (!isConfigured) return
@@ -36,8 +57,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (active) setLoading(false)
     })
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next)
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true)
+      if (event === 'SIGNED_OUT') setRecovery(false)
     })
     return () => {
       active = false
@@ -88,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       isEditor,
       loading,
+      recovery,
       refreshEditor,
       signIn: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -101,12 +125,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut: async () => {
         await supabase.auth.signOut()
       },
-      changePassword: async (password) => {
+      signOutEverywhere: async () => {
+        const { error } = await supabase.auth.signOut({ scope: 'global' })
+        if (error) throw error
+      },
+      changePassword: async (password, current) => {
+        if (current !== undefined) {
+          const email = session?.user.email
+          if (!email) throw new Error('Нет сессии — войдите заново')
+          const check = await supabase.auth.signInWithPassword({ email, password: current })
+          if (check.error) throw new Error('Текущий пароль неверный')
+        }
         const { error } = await supabase.auth.updateUser({ password })
+        if (error) throw error
+        setRecovery(false)
+      },
+      changeEmail: async (email) => {
+        const { error } = await supabase.auth.updateUser({ email })
+        if (error) throw error
+      },
+      resetPassword: async (email) => {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/profile`,
+        })
         if (error) throw error
       },
     }),
-    [session, isEditor, loading, refreshEditor],
+    [session, isEditor, loading, recovery, refreshEditor],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

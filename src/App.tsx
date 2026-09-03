@@ -8,6 +8,7 @@ import { AppShell } from '@/components/AppShell'
 import { HomePage } from '@/pages/HomePage'
 import { NodePage } from '@/pages/NodePage'
 import { LoginPage } from '@/pages/LoginPage'
+import { ProfilePage } from '@/pages/ProfilePage'
 import { EditorPage } from '@/pages/EditorPage'
 import { SetupPage } from '@/pages/SetupPage'
 import { isConfigured } from '@/lib/supabase'
@@ -37,6 +38,7 @@ export default function App() {
                   <Route path="/" element={<HomePage />} />
                   <Route path="/n/:id" element={<NodePage />} />
                   <Route path="/login" element={<LoginPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/edit" element={<EditorPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

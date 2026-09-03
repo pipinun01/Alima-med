@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LogIn, LogOut, Menu, PenLine, Search, Settings2, TriangleAlert, X } from 'lucide-react'
+import { LogIn, Menu, PenLine, Search, Settings2, TriangleAlert, UserRound, X } from 'lucide-react'
 import { Logo } from './Logo'
 import { Sidebar } from './Sidebar'
 import { SearchPalette } from './SearchPalette'
@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawer, setDrawer] = useState(false)
   const [search, setSearch] = useState(false)
   const [settings, setSettings] = useState(false)
-  const { session, isEditor, signOut } = useAuth()
+  const { session, isEditor } = useAuth()
   const { effective } = useSettings()
   const location = useLocation()
   const navigate = useNavigate()
@@ -130,8 +130,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
 
           {session ? (
-            <IconButton label="Выйти" onClick={() => void signOut()}>
-              <LogOut size={18} />
+            <IconButton label="Аккаунт" onClick={() => navigate('/profile')}>
+              <UserRound size={18} />
             </IconButton>
           ) : (
             <IconButton label="Войти" onClick={() => navigate('/login')}>
@@ -185,7 +185,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] px-4 py-3">
               <ThemeSwitcher />
-              <Link to="/login" className="text-[13px] text-[var(--fg-faint)] hover:text-[var(--fg)]">
+              <Link
+                to={session ? '/profile' : '/login'}
+                className="text-[13px] text-[var(--fg-faint)] hover:text-[var(--fg)]"
+              >
                 {session ? 'Аккаунт' : 'Войти'}
               </Link>
             </div>
