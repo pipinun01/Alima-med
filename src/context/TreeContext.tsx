@@ -3,6 +3,7 @@ import * as api from '@/lib/api'
 import { buildTree, type TreeIndex } from '@/lib/tree'
 import { isConfigured } from '@/lib/supabase'
 import { onDataUpdated } from '@/lib/sw-client'
+import { onReturn } from '@/lib/visibility'
 import type { DbNode } from '@/lib/types'
 
 type FlatNode = DbNode
@@ -64,6 +65,9 @@ export function TreeProvider({ children }: { children: React.ReactNode }) {
     }),
     [reload],
   )
+
+  // Вернулись во вкладку после долгого перерыва — за это время дерево могли дополнить
+  useEffect(() => onReturn(() => void reload()), [reload])
 
   useEffect(() => {
     if (!notice) return

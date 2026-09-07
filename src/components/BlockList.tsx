@@ -5,6 +5,7 @@ import {
 import * as api from '@/lib/api'
 import { clearDraft, draftKey } from '@/lib/drafts'
 import { onDataUpdated } from '@/lib/sw-client'
+import { onReturn } from '@/lib/visibility'
 import type { Block, TermColor } from '@/lib/types'
 import { haptic } from '@/lib/telegram'
 import { NoteView } from './NoteView'
@@ -92,11 +93,13 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
   const localRef = useRef<Block[]>([])
   const savingRef = useRef(saving)
   const failedRef = useRef(failed)
+  const editingRef = useRef(editing)
   useEffect(() => {
     localRef.current = blocks
     savingRef.current = saving
     failedRef.current = failed
-  }, [blocks, saving, failed])
+    editingRef.current = editing
+  }, [blocks, saving, failed, editing])
 
   const load = useCallback(
     async (silent = false) => {
@@ -179,6 +182,12 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
     }),
     [nodeId, load],
   )
+
+  /**
+   * Вернулись во вкладку — перечитываем блоки. Но не тогда, когда открыт
+   * редактор: отошли посмотреть учебник, вернулись — и текст подменился бы.
+   */
+  useEffect(() => onReturn(() => { if (editingRef.current === null) void load(true) }), [load])
 
   useEffect(() => {
     if (!notice) return

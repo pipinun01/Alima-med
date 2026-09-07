@@ -15,7 +15,7 @@
  * При смене VERSION старые кэши удаляются целиком.
  */
 
-const VERSION = 'v3'
+const VERSION = 'v4'
 const SHELL = `shell-${VERSION}`
 const DATA = `data-${VERSION}`
 const MEDIA = `media-${VERSION}`
@@ -86,10 +86,14 @@ function broadcast(message) {
  */
 async function dataStaleWhileRevalidate(request, event) {
   const cached = await match(request)
+  // Копию снимаем сразу, до ответа странице: как только сохранённый ответ уйдёт
+  // в respondWith, его тело считается использованным, и clone() бросает ошибку.
+  // Тогда сравнение падало, кэш не обновлялся и правки не появлялись вовсе.
+  const copy = cached ? cached.clone() : null
   const update = fetch(request).then(async (response) => {
     if (!response.ok) return response
     const fresh = await response.clone().text()
-    const before = cached ? await cached.clone().text() : null
+    const before = copy ? await copy.text() : null
     await put(DATA, request, response)
     if (before !== null && before !== fresh) await broadcast({ type: 'DATA_UPDATED', url: request.url })
     return response
