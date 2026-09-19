@@ -151,12 +151,26 @@ body {
   transition: background-color 0.3s var(--ease-out-soft), color 0.3s var(--ease-out-soft);
 }
 
+/* Встроенный браузер Telegram на iPhone (ссылка, открытая из чата) помнит свой
+   размер шрифта из меню «Аа» и навязывает его каждой странице стилем
+   `* { -webkit-text-size-adjust: N% !important }`. Текст раздувается, а блоки
+   нет: страница становится шире экрана и открывается «приближенной», её
+   приходится сводить пальцами. Размер текста у нас настраивается в самом
+   приложении, поэтому чужую надбавку отменяем. `body *` нужен ради
+   специфичности: против `*` с !important одного правила на body мало.
+   Правило должно оставаться вне @layer — иначе оно проиграет. */
+html, body, body * {
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
+}
+
 /* На сенсорных экранах поле ввода мельче 16px заставляет Safari приближать
    страницу при фокусе — и после клавиатуры она остаётся «раздутой».
-   Поэтому на телефоне все поля не мельче 16px; десктоп не трогаем. */
+   Поэтому на телефоне все поля не мельче 16px; десктоп не трогаем.
+   Делим на масштаб: при «Размере текста» 90 % те же 16px на экране дали бы 14,4. */
 @media (hover: none) and (pointer: coarse) {
   input:not([type="range"]), select, textarea {
-    font-size: 16px !important;
+    font-size: max(16px, calc(16px / var(--app-zoom, 1))) !important;
   }
 }
 
@@ -252,7 +266,7 @@ body {
 /* Редактор — тоже поле ввода: мельче 16px Safari на телефоне приблизит страницу при фокусе */
 @media (hover: none) and (pointer: coarse) {
   .prose-note.ProseMirror[contenteditable="true"] {
-    font-size: max(16px, calc((var(--note-size) - 1) * 1px));
+    font-size: max(calc(16px / var(--app-zoom, 1)), calc((var(--note-size) - 1) * 1px));
   }
 }
 /* Плотные строки — плотнее и абзацы, иначе текст рассыпается на островки */
