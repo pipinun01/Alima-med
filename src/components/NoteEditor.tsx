@@ -7,8 +7,8 @@ import {
 import { buildExtensions } from '@/lib/tiptap-config'
 import { uploadImage } from '@/lib/api'
 import { TERM_LABELS, type TermColor } from '@/lib/types'
-import { haptic } from '@/lib/telegram'
-import { Button, ErrorNote, Modal, Spinner } from './ui'
+import { guardTelegramClose, haptic } from '@/lib/telegram'
+import { Button, ErrorNote, Field, Modal, Spinner } from './ui'
 
 const TERM_SWATCH: Record<TermColor, string> = {
   red: 'var(--term-red-fg)',
@@ -53,6 +53,52 @@ function ToolButton({
 
 const Divider = () => <span className="mx-1 h-5 w-px shrink-0 bg-[var(--line)]" />
 
+function LinkModal({
+  initial,
+  canRemove,
+  onApply,
+  onClose,
+}: {
+  initial: string
+  canRemove: boolean
+  onApply: (url: string) => void
+  onClose: () => void
+}) {
+  const [value, setValue] = useState(initial)
+
+  return (
+    <Modal open onClose={onClose} title="Ссылка">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          onApply(value.trim())
+        }}
+      >
+        <Field
+          label="Адрес"
+          type="url"
+          inputMode="url"
+          autoCapitalize="off"
+          autoCorrect="off"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button type="submit">Применить</Button>
+          {canRemove && (
+            <Button variant="ghost" onClick={() => onApply('')}>
+              Убрать ссылку
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onClose}>
+            Отмена
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 function Toolbar({
   editor,
   onPickImage,
@@ -75,17 +121,24 @@ function Toolbar({
     }
   }, [editor])
 
+  // Своё окно, а не window.prompt: в Telegram системный диалог может не показаться вовсе
+  const [linkUrl, setLinkUrl] = useState<string | null>(null)
+  const hadLink = editor.isActive('link')
+
   const setLink = () => {
-    const previous = editor.getAttributes('link').href as string | undefined
-    const url = window.prompt('Ссылка (пусто — убрать)', previous ?? 'https://')
-    if (url === null) return
-    if (url === '') return void editor.chain().focus().unsetMark('link').run()
-    editor.chain().focus().setMark('link', { href: url }).run()
+    setLinkUrl((editor.getAttributes('link').href as string | undefined) ?? 'https://')
+  }
+
+  const applyLink = (url: string) => {
+    if (url) editor.chain().focus().setMark('link', { href: url }).run()
+    else editor.chain().focus().unsetMark('link').run()
+    setLinkUrl(null)
   }
 
   const inTerm = editor.isActive('term')
 
   return (
+    <>
     <div
       className="glass under-header sticky z-20 -mx-1 flex flex-wrap items-center gap-0.5
         rounded-xl border border-[var(--line)] px-1.5 py-1.5 shadow-[var(--shadow-sm)]"
@@ -169,6 +222,10 @@ function Toolbar({
         {uploading ? <Spinner /> : <ImagePlus size={16} />}
       </ToolButton>
     </div>
+    {linkUrl !== null && (
+      <LinkModal initial={linkUrl} canRemove={hadLink} onApply={applyLink} onClose={() => setLinkUrl(null)} />
+    )}
+    </>
   )
 }
 
@@ -290,7 +347,11 @@ export function NoteEditor({
     if (!dirty) return
     const warn = (e: BeforeUnloadEvent) => e.preventDefault()
     window.addEventListener('beforeunload', warn)
-    return () => window.removeEventListener('beforeunload', warn)
+    const release = guardTelegramClose()
+    return () => {
+      window.removeEventListener('beforeunload', warn)
+      release()
+    }
   }, [dirty])
 
   if (!editor) return null

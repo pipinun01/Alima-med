@@ -13,6 +13,7 @@ import { SearchContext } from '@/context/SearchContext'
 import { SettingsModal } from './SettingsModal'
 import { BackgroundLayer } from './BackgroundLayer'
 import { useSettings } from '@/context/SettingsContext'
+import { bindTelegramBack, useTelegramOverlay } from '@/lib/telegram'
 
 /** Полоска под шапкой: дерево не загрузилось или правка не записалась */
 function StatusBar() {
@@ -53,6 +54,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const searchApi = useMemo(() => ({ open: () => setSearch(true) }), [])
 
   useEffect(() => setDrawer(false), [location.pathname])
+
+  useTelegramOverlay(drawer, () => setDrawer(false))
+
+  // Вход, профиль, панель редактора: без этого «назад» в Telegram заменяется на
+  // «Закрыть». На главной кнопка не нужна, а у разделов своя — на родителя (NodePage)
+  useEffect(() => {
+    if (location.pathname === '/' || location.pathname.startsWith('/n/')) return
+    const cameHere = location.key !== 'default'
+    return bindTelegramBack(() => (cameHere ? navigate(-1) : navigate('/')))
+  }, [location.pathname, location.key, navigate])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

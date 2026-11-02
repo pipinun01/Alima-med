@@ -4,7 +4,7 @@ import { CornerDownLeft, FileText, FolderTree, Search, X } from 'lucide-react'
 import { searchAll } from '@/lib/api'
 import { useTree } from '@/context/TreeContext'
 import { pathTo } from '@/lib/tree'
-import { haptic } from '@/lib/telegram'
+import { haptic, useTelegramOverlay } from '@/lib/telegram'
 import { Spinner } from './ui'
 import type { SearchHit } from '@/lib/types'
 
@@ -130,6 +130,8 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
       ?.querySelector(`[data-index="${cursor}"]`)
       ?.scrollIntoView({ block: 'nearest' })
   }, [cursor])
+
+  useTelegramOverlay(open, onClose)
 
   if (!open) return null
 

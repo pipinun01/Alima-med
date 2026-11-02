@@ -1,16 +1,30 @@
 /** Тонкий слой над Telegram Mini App SDK: в браузере всё превращается в no-op */
 
+import { useEffect, useRef } from 'react'
+
+export type HomeScreenStatus = 'unsupported' | 'unknown' | 'added' | 'missed'
+
 interface TgWebApp {
   initData: string
   initDataUnsafe: { user?: { id: number; first_name?: string; username?: string } }
   platform?: string
   colorScheme: 'light' | 'dark'
+  isVersionAtLeast: (version: string) => boolean
   ready: () => void
   expand: () => void
   close: () => void
   setHeaderColor?: (color: string) => void
   setBackgroundColor?: (color: string) => void
+  setBottomBarColor?: (color: string) => void
   disableVerticalSwipes?: () => void
+  enableClosingConfirmation: () => void
+  disableClosingConfirmation: () => void
+  openLink: (url: string) => void
+  openTelegramLink: (url: string) => void
+  addToHomeScreen?: () => void
+  checkHomeScreenStatus?: (callback: (status: HomeScreenStatus) => void) => void
+  onEvent: (event: string, callback: () => void) => void
+  offEvent: (event: string, callback: () => void) => void
   BackButton: { show: () => void; hide: () => void; onClick: (cb: () => void) => void; offClick: (cb: () => void) => void }
   HapticFeedback?: {
     impactOccurred: (s: 'light' | 'medium' | 'heavy') => void
@@ -36,26 +50,55 @@ export const inTelegram = (): boolean => {
   return Boolean(app.initData) || Boolean(app.platform && app.platform !== 'unknown')
 }
 
-export function initTelegram() {
-  const app = tg()
-  if (!app || !inTelegram()) return
-  app.ready()
-  app.expand()
-  app.disableVerticalSwipes?.()
+const miniApp = () => (inTelegram() ? tg() : undefined)
+
+const isTelegramHost = (host: string) => host === 't.me' || host === 'telegram.me'
+
+/**
+ * Внешняя ссылка в Mini App должна уходить через SDK: в окошке Telegram обычный
+ * переход с target="_blank" либо ничего не делает, либо подменяет само приложение.
+ * Ссылки на t.me без target="_blank" SDK ловит сам и зовёт preventDefault —
+ * поэтому такие клики здесь пропускаем, иначе откроется дважды.
+ */
+function openExternalLinks(app: TgWebApp) {
+  document.addEventListener('click', (event) => {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey) return
+    const link = (event.target as Element | null)?.closest?.<HTMLAnchorElement>('a[href]')
+    if (!link || link.closest('.ProseMirror')) return
+    if (link.protocol !== 'http:' && link.protocol !== 'https:') return
+    if (link.origin === window.location.origin) return
+    event.preventDefault()
+    if (isTelegramHost(link.hostname)) app.openTelegramLink(link.href)
+    else app.openLink(link.href)
+  })
 }
 
-/** Красим шапку Telegram в цвет фона текущей темы */
+let started = false
+
+export function initTelegram() {
+  const app = miniApp()
+  if (!app || started) return
+  started = true
+  app.ready()
+  app.expand()
+  if (app.isVersionAtLeast('7.7')) app.disableVerticalSwipes?.()
+  openExternalLinks(app)
+}
+
+/** Красим шапку и нижнюю панель Telegram в цвет фона текущей темы */
 export function syncTelegramChrome() {
-  const app = tg()
-  if (!app || !inTelegram()) return
+  const app = miniApp()
+  if (!app) return
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()
   if (!bg) return
-  app.setHeaderColor?.(bg)
-  app.setBackgroundColor?.(bg)
+  // До 6.9 SDK принимает только свои ключи цвета, а на чужом значении бросает ошибку
+  if (app.isVersionAtLeast('6.9')) app.setHeaderColor?.(bg)
+  if (app.isVersionAtLeast('6.1')) app.setBackgroundColor?.(bg)
+  if (app.isVersionAtLeast('7.10')) app.setBottomBarColor?.(bg)
 }
 
 /** Вибрация только внутри Telegram: в браузере SDK лишь сыпал бы предупреждениями в консоль */
-const feedback = () => (inTelegram() ? tg()?.HapticFeedback : undefined)
+const feedback = () => miniApp()?.HapticFeedback
 
 export const haptic = {
   tap: () => feedback()?.selectionChanged(),
@@ -64,18 +107,93 @@ export const haptic = {
   err: () => feedback()?.notificationOccurred('error'),
 }
 
-/** Системная кнопка «назад» Telegram, привязанная к переданному обработчику */
-export function bindTelegramBack(handler: (() => void) | null) {
-  const app = tg()
-  if (!app || !inTelegram()) return () => {}
-  if (!handler) {
-    app.BackButton.hide()
-    return () => {}
+/*
+ * Кнопка «назад». Пока она скрыта, на её месте у Telegram стоит «Закрыть» —
+ * то есть любой экран без «назад» закрывается вместе с приложением. Обработчик
+ * у SDK один и не меняется: он зовёт то, что сейчас сверху. Окна лежат стопкой
+ * над страницей, так что страница может перепривязаться (дерево перечиталось),
+ * не перехватив кнопку у открытого окна.
+ */
+let pageBack: (() => void) | null = null
+const overlayBacks: (() => void)[] = []
+let backBound = false
+
+const activeBack = () => overlayBacks[overlayBacks.length - 1] ?? pageBack
+
+function syncBackButton(app: TgWebApp) {
+  if (!backBound) {
+    backBound = true
+    app.BackButton.onClick(() => activeBack()?.())
   }
-  app.BackButton.onClick(handler)
-  app.BackButton.show()
+  if (activeBack()) app.BackButton.show()
+  else app.BackButton.hide()
+}
+
+/** Куда ведёт «назад» с текущей страницы. Вызывать в useEffect, вернёт отписку */
+export function bindTelegramBack(handler: () => void) {
+  const app = miniApp()
+  if (!app) return () => {}
+  pageBack = handler
+  syncBackButton(app)
   return () => {
-    app.BackButton.offClick(handler)
-    app.BackButton.hide()
+    if (pageBack === handler) pageBack = null
+    syncBackButton(app)
   }
+}
+
+/** Пока окно открыто, «назад» закрывает его, а не уводит со страницы */
+export function useTelegramOverlay(open: boolean, onClose: () => void) {
+  const latest = useRef(onClose)
+  useEffect(() => {
+    latest.current = onClose
+  })
+  useEffect(() => {
+    const app = miniApp()
+    if (!open || !app) return
+    const handler = () => latest.current()
+    overlayBacks.push(handler)
+    syncBackButton(app)
+    return () => {
+      overlayBacks.splice(overlayBacks.indexOf(handler), 1)
+      syncBackButton(app)
+    }
+  }, [open])
+}
+
+/** Telegram спросит подтверждение при закрытии — замена beforeunload, которого в Mini App нет */
+export function guardTelegramClose() {
+  const app = miniApp()
+  if (!app?.isVersionAtLeast('6.2')) return () => {}
+  app.enableClosingConfirmation()
+  return () => app.disableClosingConfirmation()
+}
+
+const homeScreenApp = () => {
+  const app = miniApp()
+  return app?.isVersionAtLeast('8.0') ? app : undefined
+}
+
+/** Есть ли значок приложения на экране телефона. Клиент может не ответить — тогда 'unknown' */
+export function homeScreenStatus(): Promise<HomeScreenStatus> {
+  const app = homeScreenApp()
+  if (!app?.checkHomeScreenStatus) return Promise.resolve('unsupported')
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve('unknown'), 1500)
+    app.checkHomeScreenStatus?.((status) => {
+      clearTimeout(timer)
+      resolve(status)
+    })
+  })
+}
+
+/** Просим Telegram добавить значок; onAdded — когда он подтвердит */
+export function addToHomeScreen(onAdded: () => void) {
+  const app = homeScreenApp()
+  if (!app?.addToHomeScreen) return
+  const added = () => {
+    app.offEvent('homeScreenAdded', added)
+    onAdded()
+  }
+  app.onEvent('homeScreenAdded', added)
+  app.addToHomeScreen()
 }

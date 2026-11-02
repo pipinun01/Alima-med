@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
+import { useTelegramOverlay } from '@/lib/telegram'
 
 type Variant = 'primary' | 'ghost' | 'soft' | 'danger' | 'outline'
 type Size = 'sm' | 'md' | 'lg'
@@ -170,6 +171,8 @@ export function Modal({
       opener?.focus?.()
     }
   }, [open])
+
+  useTelegramOverlay(open, onClose)
 
   if (!open) return null
 

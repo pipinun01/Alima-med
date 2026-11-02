@@ -16,7 +16,7 @@ import {
 } from '@/lib/offline'
 import { useInstall } from '@/lib/install'
 import { plural } from '@/lib/plural'
-import { haptic } from '@/lib/telegram'
+import { addToHomeScreen, haptic, homeScreenStatus, inTelegram, type HomeScreenStatus } from '@/lib/telegram'
 import { Button, ErrorNote, Modal, Spinner } from './ui'
 
 function Slider({
@@ -65,8 +65,67 @@ const dateTime = (iso: string) =>
 
 /* ─── Установка на устройство ───────────────────────────────────────────── */
 
+/** Внутри Mini App значок ставит сам Telegram: подсказки про Safari и Chrome здесь не к месту */
+function TelegramInstallSection() {
+  const [status, setStatus] = useState<HomeScreenStatus | null>(null)
+
+  useEffect(() => {
+    void homeScreenStatus().then(setStatus)
+  }, [])
+
+  if (status === null) return null
+
+  if (status === 'added') {
+    return (
+      <p className="mt-6 flex items-center gap-2 text-[12.5px] text-[var(--fg-faint)]">
+        <Smartphone size={14} />
+        Значок уже на экране телефона — всё на месте.
+      </p>
+    )
+  }
+
+  return (
+    <section className="mt-6">
+      <h3 className="mb-2.5 flex items-center gap-1.5 text-[13px] font-medium text-[var(--fg-soft)]">
+        <Smartphone size={14} className="text-[var(--accent)]" />
+        Значок на экране телефона
+      </h3>
+
+      {status === 'unsupported' ? (
+        <p className="rounded-2xl border border-[var(--line)] p-3.5 text-[13px] leading-relaxed text-[var(--fg-soft)]">
+          Эта версия Telegram не умеет добавлять значок на экран. Можно обновить Telegram или{' '}
+          <a href={window.location.origin} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] underline">
+            открыть сайт в браузере
+          </a>{' '}
+          и установить приложение оттуда.
+        </p>
+      ) : (
+        <>
+          <Button
+            onClick={() => {
+              haptic.tap()
+              addToHomeScreen(() => {
+                haptic.ok()
+                setStatus('added')
+              })
+            }}
+          >
+            <Smartphone size={16} />
+            Добавить на экран
+          </Button>
+          <p className="mt-2 text-[12.5px] leading-relaxed text-[var(--fg-soft)]">
+            Появится значок, и конспекты будут открываться сразу, без захода в бота.
+          </p>
+        </>
+      )}
+    </section>
+  )
+}
+
 function InstallSection() {
   const { available, install, standalone, ios } = useInstall()
+
+  if (inTelegram()) return <TelegramInstallSection />
 
   if (standalone) {
     return (
@@ -109,7 +168,7 @@ function InstallSection() {
       ) : (
         <p className="rounded-2xl border border-[var(--line)] p-3.5 text-[13px] leading-relaxed text-[var(--fg-soft)]">
           В меню браузера выберите <b>Установить приложение</b> (в Chrome — значок с плюсом справа
-          в адресной строке). В Telegram установка недоступна: откройте сайт в браузере.
+          в адресной строке).
         </p>
       )}
     </section>
@@ -131,7 +190,21 @@ function OfflineSection() {
 
   useEffect(refresh, [refresh])
 
-  if (!offlineSupported()) return null
+  // Встроенные окна на iPhone (и Mini App, и браузер Telegram) могут не давать service worker
+  if (!offlineSupported()) {
+    return (
+      <section className="mt-6">
+        <h3 className="mb-2.5 flex items-center gap-1.5 text-[13px] font-medium text-[var(--fg-soft)]">
+          <WifiOff size={14} className="text-[var(--accent)]" />
+          Чтение без интернета
+        </h3>
+        <p className="rounded-2xl border border-[var(--line)] p-3.5 text-[13px] leading-relaxed text-[var(--fg-soft)]">
+          В этом окне конспекты нельзя скачать заранее — такой возможности не даёт сам телефон.
+          Для чтения без сети откройте сайт в браузере и скачайте их там.
+        </p>
+      </section>
+    )
+  }
 
   const cardIds = [...byId.values()].filter((n) => n.kind === 'card').map((n) => n.id)
 

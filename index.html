@@ -49,8 +49,8 @@
           var tg = window.Telegram && window.Telegram.WebApp;
           // В обычном браузере SDK тоже создаёт WebApp, но с пустым initData и platform = 'unknown'
           var inTelegram = !!tg && (!!tg.initData || (!!tg.platform && tg.platform !== 'unknown'));
-          var theme = saved || ((inTelegram && tg.colorScheme === 'dark')
-            || window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          // Первая тема выбирается так же, как на сайте: по системе, а не по теме самого Telegram
+          var theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
           document.documentElement.setAttribute('data-theme', theme);
           if (inTelegram) document.documentElement.classList.add('is-telegram');
         } catch (e) {}

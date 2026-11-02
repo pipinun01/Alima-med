@@ -148,6 +148,18 @@ TipTap 3, только в ленивом куске `BlockEditor`. Набор р
 `bindTelegramBack` возвращает функцию отписки и вызывается внутри `useEffect`.
 Не переименовывать в `useTelegramBack`: это не хук.
 
+Пока кнопка «назад» скрыта, на её месте у Telegram стоит «Закрыть», и экран
+закрывается вместе с приложением. Поэтому: куда ведёт страница — `bindTelegramBack`
+(разделы — `NodePage`, остальное кроме главной — `AppShell`); любое новое окно
+поверх страницы — `useTelegramOverlay(open, onClose)`. `Modal`, `Lightbox`,
+`SearchPalette`, шторка и редактор блока уже подключены. Внешние ссылки `initTelegram`
+сам отправляет через `openLink`. `window.prompt`/`alert`/`confirm` не использовать.
+
+Первая тема выбирается как на сайте, по системе, а не по `colorScheme` Telegram:
+приложение должно выглядеть одинаково. Цветами и шапкой занимается
+`syncTelegramChrome`; своих стилей под Telegram нет — класс `is-telegram` ни к чему
+не привязан, и так задумано.
+
 `inTelegram()` смотрит на `initData` и `platform`: скрипт SDK подключён всегда,
 и в браузере он тоже создаёт `window.Telegram.WebApp` — с пустым `initData` и
 `platform = 'unknown'`. Проверять одно лишь наличие объекта нельзя.

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
+import { useTelegramOverlay } from '@/lib/telegram'
 
 export function Lightbox({ src, onClose }: { src: string | null; onClose: () => void }) {
   useEffect(() => {
@@ -14,6 +15,8 @@ export function Lightbox({ src, onClose }: { src: string | null; onClose: () => 
       document.body.style.overflow = prev
     }
   }, [src, onClose])
+
+  useTelegramOverlay(Boolean(src), onClose)
 
   if (!src) return null
 

@@ -7,7 +7,7 @@ import { clearDraft, draftKey } from '@/lib/drafts'
 import { onDataUpdated } from '@/lib/sw-client'
 import { onReturn } from '@/lib/visibility'
 import type { Block, TermColor } from '@/lib/types'
-import { haptic } from '@/lib/telegram'
+import { haptic, useTelegramOverlay } from '@/lib/telegram'
 import { NoteView } from './NoteView'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Button, ErrorNote, IconButton, Modal, Spinner } from './ui'
@@ -228,6 +228,9 @@ export function BlockList({ nodeId, canEdit }: { nodeId: string; canEdit: boolea
     if (next === 'new') setNewDraft(makeDraft())
     setEditing(next)
   }
+
+  // «Назад» в Telegram при открытом редакторе — как «Отмена»: с вопросом о несохранённом
+  useTelegramOverlay(editing !== null, () => go(null))
 
   const discardAndGo = () => {
     if (!pending) return
