@@ -6,7 +6,10 @@ export type HomeScreenStatus = 'unsupported' | 'unknown' | 'added' | 'missed'
 
 interface TgWebApp {
   initData: string
-  initDataUnsafe: { user?: { id: number; first_name?: string; username?: string } }
+  initDataUnsafe: {
+    user?: { id: number; first_name?: string; last_name?: string; username?: string }
+    start_param?: string
+  }
   platform?: string
   colorScheme: 'light' | 'dark'
   isVersionAtLeast: (version: string) => boolean
@@ -51,6 +54,15 @@ export const inTelegram = (): boolean => {
 }
 
 const miniApp = () => (inTelegram() ? tg() : undefined)
+
+const BOT_URL = 'https://t.me/alima_dem_bot'
+
+/** Ссылка, которая открывает приложение внутри бота. code уходит в приложение как приглашение */
+export const botLink = (code?: string) => (code ? `${BOT_URL}?startapp=${code}` : BOT_URL)
+
+export const telegramInitData = () => miniApp()?.initData ?? ''
+export const telegramUser = () => miniApp()?.initDataUnsafe.user
+export const telegramStartParam = () => miniApp()?.initDataUnsafe.start_param ?? ''
 
 const isTelegramHost = (host: string) => host === 't.me' || host === 'telegram.me'
 

@@ -54,10 +54,11 @@ as $$
 $$;
 
 -- ─── Приглашения: ссылка на одного человека ────────────────────────────────
---  Читать базу может кто угодно без входа, поэтому открытая регистрация
---  сделала бы редактором любого прохожего. Владелец создаёт в профиле ссылку:
---  она срабатывает один раз и живёт 7 дней. Общая фраза на всех не годится: кого
---  убрали, тот ввёл бы её снова.
+--  Открыть бота может любой, и каждый сразу становится читателем. Права на правку
+--  владелец даёт кнопкой в профиле, а тому, кто ещё не открывал бота, отправляет
+--  ссылку: она срабатывает один раз и живёт 7 дней. Общая фраза на всех не годится:
+--  кого убрали, тот ввёл бы её снова. Ссылку на нового владельца создаёт только SQL:
+--    insert into editor_invites (role) values ('owner') returning code;
 create table if not exists editor_invites (
   code       text primary key default replace(gen_random_uuid()::text, '-', ''),
   created_by uuid references auth.users (id) on delete set null,
@@ -67,9 +68,38 @@ create table if not exists editor_invites (
   used_at    timestamptz
 );
 
+alter table editor_invites
+  add column if not exists role text not null default 'editor' check (role in ('owner', 'editor'));
+
 --  RLS включён, а политик нет ни одной: через API коды не прочитать даже
 --  редактору. С ними работают только функции ниже.
 alter table editor_invites enable row level security;
+
+-- ─── Кто этот аккаунт в Telegram ───────────────────────────────────────────
+--  Заполняет только функция telegram-auth (ключ service_role обходит RLS).
+--  Политик нет: имена отдаёт владельцам list_people.
+create table if not exists telegram_accounts (
+  telegram_id bigint primary key,
+  user_id     uuid not null unique references auth.users (id) on delete cascade,
+  first_name  text,
+  last_name   text,
+  username    text,
+  updated_at  timestamptz not null default now()
+);
+
+alter table telegram_accounts enable row level security;
+
+--  Читатель — любой, кто вошёл через Telegram. Просто аккаунта Supabase мало:
+--  иначе конспекты прочитал бы любой, кто зарегистрировался напрямую через API.
+create or replace function is_reader()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select is_editor() or exists (select 1 from telegram_accounts where user_id = auth.uid());
+$$;
 
 --  Фраза для самого первого запуска: на пустой базе ещё некому создавать ссылки.
 --  Срабатывает, только пока нет ни одного владельца, и делает владельцем:
@@ -97,6 +127,7 @@ as $$
 declare
   given    text := btrim(coalesce(p_code, ''));
   expected text;
+  granted  text;
 begin
   if auth.uid() is null then
     raise exception 'Сначала нужно войти в аккаунт';
@@ -108,9 +139,10 @@ begin
 
   update editor_invites
      set used_by = auth.uid(), used_at = now()
-   where code = given and used_at is null and expires_at > now();
+   where code = given and used_at is null and expires_at > now()
+  returning role into granted;
   if found then
-    insert into editors (user_id, role) values (auth.uid(), 'editor')
+    insert into editors (user_id, role) values (auth.uid(), granted)
     on conflict (user_id) do nothing;
     return true;
   end if;
@@ -145,23 +177,58 @@ begin
 end;
 $$;
 
---  Почты лежат в auth.users, клиенту туда хода нет. Не владельцу вернётся пустой список.
-create or replace function list_editors()
-returns table (user_id uuid, email text, role text, added_at timestamptz)
+--  Все, кто открывал бота, и все редакторы. Имена лежат в закрытых таблицах, поэтому
+--  отдаёт их функция. Не владельцу вернётся пустой список.
+drop function if exists list_editors();
+drop function if exists list_people();
+create function list_people()
+returns table (user_id uuid, name text, username text, role text, added_at timestamptz)
 language sql
 stable
 security definer
 set search_path = public
 as $$
-  select e.user_id, u.email::text, e.role, e.added_at
-    from editors e
-    join auth.users u on u.id = e.user_id
+  select u.id,
+         coalesce(
+           nullif(btrim(concat_ws(' ', t.first_name, t.last_name)), ''),
+           t.username,
+           u.email::text
+         ),
+         t.username,
+         coalesce(e.role, 'reader'),
+         coalesce(e.added_at, t.updated_at)
+    from auth.users u
+    left join editors e on e.user_id = u.id
+    left join telegram_accounts t on t.user_id = u.id
    where is_owner()
-   order by e.role desc, e.added_at;
+     and (e.user_id is not null or t.user_id is not null)
+   order by case coalesce(e.role, 'reader') when 'owner' then 0 when 'editor' then 1 else 2 end,
+            coalesce(e.added_at, t.updated_at) desc;
 $$;
 
---  Владельца так не убрать, ни чужого, ни себя: база не останется без хозяина.
---  Права пропадают сразу: политики спрашивают is_editor() при каждом запросе.
+--  Сделать читателя редактором. Владельца это не понизит: строка уже есть.
+create or replace function make_editor(p_user_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_owner() then
+    raise exception 'Давать права могут только владельцы';
+  end if;
+  if not exists (select 1 from telegram_accounts where user_id = p_user_id) then
+    return false;
+  end if;
+  insert into editors (user_id, role) values (p_user_id, 'editor')
+  on conflict (user_id) do nothing;
+  return true;
+end;
+$$;
+
+--  Человек снова становится читателем. Владельца так не убрать, ни чужого, ни себя:
+--  база не останется без хозяина. Права пропадают сразу: политики спрашивают
+--  is_editor() при каждом запросе.
 create or replace function remove_editor(p_user_id uuid)
 returns boolean
 language plpgsql
@@ -181,11 +248,13 @@ $$;
 --  роли anon отдельно, поэтому одного revoke from public мало.
 revoke all on function claim_editor(text)         from public, anon;
 revoke all on function create_editor_invite()     from public, anon;
-revoke all on function list_editors()             from public, anon;
+revoke all on function list_people()              from public, anon;
+revoke all on function make_editor(uuid)           from public, anon;
 revoke all on function remove_editor(uuid)        from public, anon;
 grant execute on function claim_editor(text)      to authenticated;
 grant execute on function create_editor_invite()  to authenticated;
-grant execute on function list_editors()          to authenticated;
+grant execute on function list_people()           to authenticated;
+grant execute on function make_editor(uuid)       to authenticated;
 grant execute on function remove_editor(uuid)     to authenticated;
 
 -- ─── Дерево: глава → тема → ветка → карточка ───────────────────────────────
@@ -601,7 +670,7 @@ create table if not exists app_settings (
 
 insert into app_settings (id) values (1) on conflict (id) do nothing;
 
--- ─── RLS: читают все, пишет только редактор ────────────────────────────────
+-- ─── RLS: читает вошедший через Telegram, пишет только редактор ────────────────────────────────
 alter table nodes           enable row level security;
 alter table blocks          enable row level security;
 alter table block_revisions enable row level security;
@@ -610,13 +679,13 @@ alter table app_settings    enable row level security;
 
 drop policy if exists nodes_read  on nodes;
 drop policy if exists nodes_write on nodes;
-create policy nodes_read  on nodes for select using (true);
+create policy nodes_read  on nodes for select using (is_reader());
 create policy nodes_write on nodes for all
   using (is_editor()) with check (is_editor());
 
 drop policy if exists blocks_read  on blocks;
 drop policy if exists blocks_write on blocks;
-create policy blocks_read  on blocks for select using (true);
+create policy blocks_read  on blocks for select using (is_reader());
 create policy blocks_write on blocks for all
   using (is_editor()) with check (is_editor());
 
@@ -631,7 +700,7 @@ create policy editors_self on editors for select using (user_id = auth.uid());
 
 drop policy if exists settings_read  on app_settings;
 drop policy if exists settings_write on app_settings;
-create policy settings_read  on app_settings for select using (true);
+create policy settings_read  on app_settings for select using (is_reader());
 create policy settings_write on app_settings for update
   using (is_editor()) with check (is_editor());
 
@@ -645,10 +714,11 @@ on conflict (id) do update
       file_size_limit    = excluded.file_size_limit,
       allowed_mime_types = excluded.allowed_mime_types;
 
+--  Бакет остаётся публичным: фото открываются по адресу со случайным именем, а
+--  сами адреса лежат в закрытых блоках. Политики на чтение нет — иначе список
+--  всех файлов мог бы получить любой.
 drop policy if exists notes_public_read  on storage.objects;
 drop policy if exists notes_editor_write on storage.objects;
-create policy notes_public_read on storage.objects for select
-  using (bucket_id = 'notes');
 create policy notes_editor_write on storage.objects for all
   using (bucket_id = 'notes' and is_editor())
   with check (bucket_id = 'notes' and is_editor());

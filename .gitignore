@@ -11,3 +11,6 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .vs
+
+# Служебные файлы Supabase CLI
+supabase/.temp/

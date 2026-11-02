@@ -5,9 +5,9 @@ import { AuthProvider } from '@/context/AuthContext'
 import { SettingsProvider } from '@/context/SettingsContext'
 import { TreeProvider } from '@/context/TreeContext'
 import { AppShell } from '@/components/AppShell'
+import { TelegramGate } from '@/components/TelegramGate'
 import { HomePage } from '@/pages/HomePage'
 import { NodePage } from '@/pages/NodePage'
-import { LoginPage } from '@/pages/LoginPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { EditorPage } from '@/pages/EditorPage'
 import { SetupPage } from '@/pages/SetupPage'
@@ -30,22 +30,23 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <SettingsProvider>
-          <TreeProvider>
-            <BrowserRouter>
-              <AppShell>
-                <Routes>
-                  <Route path="/" element={<HomePage />} />
-                  <Route path="/n/:id" element={<NodePage />} />
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/edit" element={<EditorPage />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </AppShell>
-            </BrowserRouter>
-          </TreeProvider>
-        </SettingsProvider>
+        <TelegramGate>
+          <SettingsProvider>
+            <TreeProvider>
+              <BrowserRouter>
+                <AppShell>
+                  <Routes>
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/n/:id" element={<NodePage />} />
+                    <Route path="/profile" element={<ProfilePage />} />
+                    <Route path="/edit" element={<EditorPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </AppShell>
+              </BrowserRouter>
+            </TreeProvider>
+          </SettingsProvider>
+        </TelegramGate>
       </AuthProvider>
     </ThemeProvider>
   )

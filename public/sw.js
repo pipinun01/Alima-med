@@ -15,7 +15,7 @@
  * При смене VERSION старые кэши удаляются целиком.
  */
 
-const VERSION = 'v4'
+const VERSION = 'v5'
 const SHELL = `shell-${VERSION}`
 const DATA = `data-${VERSION}`
 const MEDIA = `media-${VERSION}`

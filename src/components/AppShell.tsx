@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LogIn, Menu, PenLine, Search, Settings2, TriangleAlert, UserRound, X } from 'lucide-react'
+import { Menu, PenLine, Search, Settings2, TriangleAlert, UserRound, X } from 'lucide-react'
 import { Logo } from './Logo'
 import { Sidebar } from './Sidebar'
 import { SearchPalette } from './SearchPalette'
@@ -46,7 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawer, setDrawer] = useState(false)
   const [search, setSearch] = useState(false)
   const [settings, setSettings] = useState(false)
-  const { session, isEditor } = useAuth()
+  const { isEditor } = useAuth()
   const { effective } = useSettings()
   const location = useLocation()
   const navigate = useNavigate()
@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useTelegramOverlay(drawer, () => setDrawer(false))
 
-  // Вход, профиль, панель редактора: без этого «назад» в Telegram заменяется на
+  // Профиль, панель редактора: без этого «назад» в Telegram заменяется на
   // «Закрыть». На главной кнопка не нужна, а у разделов своя — на родителя (NodePage)
   useEffect(() => {
     if (location.pathname === '/' || location.pathname.startsWith('/n/')) return
@@ -141,15 +141,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </IconButton>
           )}
 
-          {session ? (
-            <IconButton label="Аккаунт" onClick={() => navigate('/profile')}>
-              <UserRound size={18} />
-            </IconButton>
-          ) : (
-            <IconButton label="Войти" onClick={() => navigate('/login')}>
-              <LogIn size={18} />
-            </IconButton>
-          )}
+          <IconButton label="Аккаунт" onClick={() => navigate('/profile')}>
+            <UserRound size={18} />
+          </IconButton>
         </div>
       </header>
 
@@ -202,11 +196,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   Панель редактора
                 </Link>
               )}
-              <Link
-                to={session ? '/profile' : '/login'}
-                className="text-[13px] text-[var(--fg-faint)] hover:text-[var(--fg)]"
-              >
-                {session ? 'Аккаунт' : 'Войти'}
+              <Link to="/profile" className="text-[13px] text-[var(--fg-faint)] hover:text-[var(--fg)]">
+                Аккаунт
               </Link>
             </div>
           </div>

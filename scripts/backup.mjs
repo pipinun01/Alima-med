@@ -4,10 +4,10 @@
  * Запуск из корня проекта:
  *   node scripts/backup.mjs [папка]           # по умолчанию ~/lichnoe-info-backups/<дата>
  *
- * Адрес и ключ читаются из .env.local. История правок (block_revisions)
- * закрыта правами: чтобы она попала в бэкап, передайте вход редактора:
- *   BACKUP_EMAIL=... BACKUP_PASSWORD=... node scripts/backup.mjs
- * Без него бэкапится всё остальное, а история пропускается с предупреждением.
+ * База закрыта, поэтому нужен служебный ключ (Supabase → Settings → API Keys).
+ * Адрес читается из .env.local, а ключ передаётся только при запуске — в файлы
+ * проекта и в приложение его не класть:
+ *   SUPABASE_SERVICE_ROLE_KEY=... node scripts/backup.mjs
  *
  * Восстановление: schema.sql создаёт пустую базу, дальше содержимое JSON
  * заливается через Supabase (Table Editor → Insert, или скриптом), файлы —
@@ -25,9 +25,9 @@ for (const line of readFileSync(new URL('../.env.local', import.meta.url), 'utf8
   if (m) env[m[1]] = m[2]
 }
 const URL_BASE = env.VITE_SUPABASE_URL
-const KEY = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY
+const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 if (!URL_BASE || !KEY) {
-  console.error('Не нашёл VITE_SUPABASE_URL / ключ в .env.local')
+  console.error('Нужны VITE_SUPABASE_URL в .env.local и ключ в SUPABASE_SERVICE_ROLE_KEY')
   process.exit(1)
 }
 
@@ -36,27 +36,14 @@ const OUT = process.argv[2] || join(homedir(), 'lichnoe-info-backups', stamp)
 mkdirSync(join(OUT, 'data'), { recursive: true })
 mkdirSync(join(OUT, 'storage'), { recursive: true })
 
-const headers = { apikey: KEY, Authorization: `Bearer ${KEY}` }
-
-// ─── Вход редактора (для истории правок) ────────────────────────────────────
-let editorToken = null
-if (process.env.BACKUP_EMAIL && process.env.BACKUP_PASSWORD) {
-  const res = await fetch(`${URL_BASE}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: { apikey: KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: process.env.BACKUP_EMAIL, password: process.env.BACKUP_PASSWORD }),
-  })
-  const auth = await res.json()
-  if (auth.access_token) editorToken = auth.access_token
-  else console.warn('Вход редактора не удался:', auth.error_description || auth.msg || res.status)
-}
+// Новые ключи sb_secret_… не JWT: их шлюз принимает только в apikey
+const headers = KEY.startsWith('eyJ') ? { apikey: KEY, Authorization: `Bearer ${KEY}` } : { apikey: KEY }
 
 // ─── Таблицы: страницами по 1000 строк ──────────────────────────────────────
-async function dumpTable(table, { auth = false } = {}) {
-  const h = auth && editorToken ? { apikey: KEY, Authorization: `Bearer ${editorToken}` } : headers
+async function dumpTable(table, order = 'id') {
   const rows = []
   for (let offset = 0; ; offset += 1000) {
-    const res = await fetch(`${URL_BASE}/rest/v1/${table}?select=*&order=id&limit=1000&offset=${offset}`, { headers: h })
+    const res = await fetch(`${URL_BASE}/rest/v1/${table}?select=*&order=${order}&limit=1000&offset=${offset}`, { headers })
     if (!res.ok) throw new Error(`${table}: HTTP ${res.status} ${await res.text()}`)
     const chunk = await res.json()
     rows.push(...chunk)
@@ -71,11 +58,14 @@ console.log('Таблицы:')
 await dumpTable('nodes')
 await dumpTable('blocks')
 await dumpTable('app_settings')
-if (editorToken) {
-  await dumpTable('block_revisions', { auth: true })
-} else {
-  console.warn('  block_revisions: ПРОПУЩЕНА — нужен вход редактора (BACKUP_EMAIL / BACKUP_PASSWORD)')
-}
+await dumpTable('block_revisions')
+await dumpTable('editors', 'user_id')
+// До обновления схемы этой таблицы ещё нет — остальная копия от этого не хуже.
+// PGRST205 — только «нет такой таблицы»; любая другая ошибка останавливает бэкап.
+await dumpTable('telegram_accounts', 'telegram_id').catch((e) => {
+  if (!e.message.includes('PGRST205')) throw e
+  console.warn('  telegram_accounts: таблицы ещё нет, пропущена')
+})
 
 // ─── Хранилище: обходим папки и качаем файлы ────────────────────────────────
 async function listFolder(prefix) {

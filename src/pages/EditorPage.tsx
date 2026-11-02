@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { CircleDashed, FolderPlus, Layers, Lock, PenLine } from 'lucide-react'
+import { Navigate, Link, useNavigate } from 'react-router-dom'
+import { CircleDashed, FolderPlus, Layers, PenLine } from 'lucide-react'
 import { useTree } from '@/context/TreeContext'
 import { useAuth } from '@/context/AuthContext'
+import { telegramUser } from '@/lib/telegram'
 import { fetchEmptyCards } from '@/lib/api'
 import { countCards, nextPosition, pathTo } from '@/lib/tree'
 import { NodeFormModal, type NodeFormValue } from '@/components/NodeFormModal'
-import { Button, EmptyState } from '@/components/ui'
+import { Button } from '@/components/ui'
 import { plural } from '@/lib/plural'
 import { TERM_LABELS, type TermColor } from '@/lib/types'
 
 export function EditorPage() {
-  const { isEditor, session } = useAuth()
+  const { isEditor } = useAuth()
+  const name = telegramUser()?.first_name
   const { roots, byId, createNode } = useTree()
   const [empty, setEmpty] = useState<{ id: string; title: string }[]>([])
   const [adding, setAdding] = useState(false)
@@ -31,24 +33,7 @@ export function EditorPage() {
     if (isEditor) fetchEmptyCards().then(setEmpty).catch(() => setEmpty([]))
   }, [isEditor])
 
-  if (!isEditor) {
-    return (
-      <div className="mx-auto max-w-2xl px-4 sm:px-8">
-        <EmptyState
-          icon={<Lock size={22} />}
-          title="Только для редактора"
-          description={
-            session
-              ? 'Этот аккаунт пока читательский. Введите код приглашения в профиле — права появятся сразу.'
-              : 'Войдите под аккаунтом редактора или зарегистрируйтесь по коду приглашения.'
-          }
-          action={<Button onClick={() => navigate(session ? '/profile' : '/login')}>
-            {session ? 'Ввести код' : 'Войти'}
-          </Button>}
-        />
-      </div>
-    )
-  }
+  if (!isEditor) return <Navigate to="/" replace />
 
   const submit = async (value: NodeFormValue) => {
     setSaving(true)
@@ -71,9 +56,7 @@ export function EditorPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 pt-8 sm:px-8">
       <h1 className="font-display text-[26px] font-bold tracking-tight">Панель редактора</h1>
-      <p className="mt-1.5 text-[15px] text-[var(--fg-soft)]">
-        Вошли как {session?.user.email}
-      </p>
+      {name && <p className="mt-1.5 text-[15px] text-[var(--fg-soft)]">Вошли как {name}</p>}
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         {[

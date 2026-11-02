@@ -388,29 +388,57 @@ export async function claimEditor(code: string): Promise<boolean> {
 
 export type EditorRole = 'owner' | 'editor'
 
-export interface EditorMember {
+export interface Person {
   user_id: string
-  email: string
-  role: EditorRole
+  name: string
+  username: string | null
+  role: EditorRole | 'reader'
   added_at: string
 }
 
-/**
- * select('*'), а не select('role'): до обновления схемы колонки ещё нет, и такой
- * запрос упал бы. Редактор тогда просто останется редактором, без прав владельца.
- */
+/** null — обычный читатель. Бросает при сбое: это не то же самое, что «прав нет» */
 export async function fetchEditorRole(userId: string): Promise<EditorRole | null> {
   const { data, error } = await supabase
     .from('editors')
-    .select('*')
+    .select('role')
     .eq('user_id', userId)
     .maybeSingle()
-  if (error || !data) return null
-  return (data as { role?: string }).role === 'owner' ? 'owner' : 'editor'
+  if (error) throw error
+  return data ? (data.role as EditorRole) : null
 }
 
-export async function listEditors(): Promise<EditorMember[]> {
-  return (await write<EditorMember[]>(() => supabase.rpc('list_editors'))) ?? []
+/**
+ * Сессия этого человека в Telegram. Сохранённую берём, только если она его: один
+ * телефон могут открывать с разных аккаунтов Telegram. Иначе меняем подписанные
+ * данные Mini App на новую сессию (supabase/functions/telegram-auth).
+ */
+export async function telegramSession(initData: string, telegramId: number | undefined) {
+  const { data } = await supabase.auth.getSession()
+  const saved = data.session
+  if (saved && telegramId && saved.user.user_metadata?.telegram_id === telegramId) return saved
+  if (saved) await supabase.auth.signOut({ scope: 'local' })
+
+  const answer = await supabase.functions.invoke<{ access_token: string; refresh_token: string }>(
+    'telegram-auth',
+    { body: { initData } },
+  )
+  if (answer.error || !answer.data) {
+    const details = await (answer.error as { context?: Response } | null)?.context?.json?.().catch(() => null)
+    throw new Error(details?.error ?? 'Не удалось войти. Проверьте связь и попробуйте ещё раз')
+  }
+  const { data: next, error } = await supabase.auth.setSession(answer.data)
+  if (error || !next.session) throw new Error('Не удалось войти. Попробуйте ещё раз')
+  return next.session
+}
+
+/** Все, кто открывал бота. RPC тоже отдаёт максимум 1000 строк, поэтому страницами */
+export async function listPeople(): Promise<Person[]> {
+  return fetchAllPages<Person>((from, to) => supabase.rpc('list_people').range(from, to))
+}
+
+export async function makeEditor(userId: string): Promise<void> {
+  await write<boolean>(() => supabase.rpc('make_editor', { p_user_id: userId }))
+  invalidateData('/rest/v1/editors')
 }
 
 /** Новая ссылка на одного человека. Повтор при обрыве связи оставит лишь неиспользованный код */
