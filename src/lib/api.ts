@@ -392,6 +392,7 @@ export interface Person {
   user_id: string
   name: string
   username: string | null
+  phone: string | null
   role: EditorRole | 'reader'
   added_at: string
 }
@@ -434,6 +435,13 @@ export async function telegramSession(initData: string, telegramId: number | und
 /** Все, кто открывал бота. RPC тоже отдаёт максимум 1000 строк, поэтому страницами */
 export async function listPeople(): Promise<Person[]> {
   return fetchAllPages<Person>((from, to) => supabase.rpc('list_people').range(from, to))
+}
+
+/** Свой номер, если человек им поделился. Бросает при сбое: это не то же самое, что «номера нет» */
+export async function fetchMyPhone(): Promise<string | null> {
+  const { data, error } = await supabase.rpc('my_phone')
+  if (error) throw error
+  return (data as string | null) ?? null
 }
 
 export async function makeEditor(userId: string): Promise<void> {

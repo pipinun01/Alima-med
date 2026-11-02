@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, Copy, Crown, PenLine, Send, ShieldCheck, Ticket, Trash2, UserPlus, UserRound, Users } from 'lucide-react'
+import { Check, Copy, Crown, PenLine, Phone, Send, ShieldCheck, Ticket, Trash2, UserPlus, UserRound, Users } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
-import { createEditorInvite, describeAuthError, listPeople, makeEditor, removeEditor, type Person } from '@/lib/api'
-import { botLink, haptic, shareViaTelegram, telegramUser } from '@/lib/telegram'
+import { createEditorInvite, describeAuthError, fetchMyPhone, listPeople, makeEditor, removeEditor, type Person } from '@/lib/api'
+import { botLink, haptic, requestPhone, shareViaTelegram, telegramUser } from '@/lib/telegram'
 import { onReturn } from '@/lib/visibility'
 import { Button, ErrorNote, Field, IconButton, Modal, Spinner } from '@/components/ui'
 
@@ -81,6 +81,77 @@ function InviteLink({ link }: { link: string }) {
   )
 }
 
+/** Сколько ждать, пока контакт дойдёт от Telegram до базы */
+const PHONE_WAIT_TRIES = 10
+const PHONE_WAIT_MS = 1000
+
+/** Свой номер: необязательно, только с согласия человека */
+function MyPhone() {
+  const [phone, setPhone] = useState<string | null | undefined>(undefined)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    fetchMyPhone()
+      .then((value) => {
+        if (alive) setPhone(value)
+      })
+      .catch(() => {
+        if (alive) setPhone(null)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const share = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      if (!(await requestPhone())) return
+      // Контакт идёт через бота, поэтому в базе появляется не мгновенно
+      for (let i = 0; i < PHONE_WAIT_TRIES; i++) {
+        await new Promise((resolve) => setTimeout(resolve, PHONE_WAIT_MS))
+        const saved = await fetchMyPhone()
+        if (saved) {
+          setPhone(saved)
+          haptic.ok()
+          return
+        }
+      }
+      setError('Номер ещё не дошёл. Откройте профиль чуть позже.')
+    } catch (err) {
+      haptic.err()
+      setError(describeAuthError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (phone === undefined) return null
+  if (phone) {
+    return (
+      <p className="mt-4 flex items-center gap-1.5 text-[14px] text-[var(--fg-soft)]">
+        <Phone size={14} className="text-[var(--accent)]" />
+        {phone}
+      </p>
+    )
+  }
+  return (
+    <div className="mt-4">
+      <Button variant="outline" onClick={() => void share()} disabled={busy}>
+        {busy ? <Spinner /> : <Phone size={16} />}
+        Поделиться номером
+      </Button>
+      <p className="mt-2 text-[12.5px] leading-relaxed text-[var(--fg-soft)]">
+        По желанию. Номер увидят только владельцы базы.
+      </p>
+      {error && <ErrorNote className="mt-2">{error}</ErrorNote>}
+    </div>
+  )
+}
+
 const ROLE_LABEL = { owner: 'Владелец', editor: 'Редактор', reader: 'Читатель' } as const
 
 /** Все, кто открывал бота: виден только владельцам */
@@ -143,7 +214,11 @@ function TeamSection() {
 
   const query = filter.trim().toLowerCase()
   const shown = people?.filter(
-    (p) => !query || p.name.toLowerCase().includes(query) || p.username?.toLowerCase().includes(query),
+    (p) =>
+      !query ||
+      p.name.toLowerCase().includes(query) ||
+      p.username?.toLowerCase().includes(query) ||
+      p.phone?.includes(query),
   )
 
   return (
@@ -162,8 +237,8 @@ function TeamSection() {
         <div className="mt-3">
           <Field
             value={filter}
-            placeholder="Найти по имени"
-            aria-label="Найти по имени"
+            placeholder="Найти по имени или номеру"
+            aria-label="Найти по имени или номеру"
             onChange={(e) => setFilter(e.target.value)}
           />
         </div>
@@ -173,9 +248,12 @@ function TeamSection() {
         <ul className="mt-3 divide-y divide-[var(--line)]">
           {shown.map((person) => (
             <li key={person.user_id} className="flex min-h-11 items-center gap-2 py-1.5">
-              <span className="min-w-0 flex-1 truncate text-[14px]" title={person.name}>
-                {person.name}
-                {person.username && <span className="ml-1.5 text-[var(--fg-faint)]">@{person.username}</span>}
+              <span className="min-w-0 flex-1 text-[14px]" title={person.name}>
+                <span className="block truncate">
+                  {person.name}
+                  {person.username && <span className="ml-1.5 text-[var(--fg-faint)]">@{person.username}</span>}
+                </span>
+                {person.phone && <span className="block truncate text-[12.5px] text-[var(--fg-soft)]">{person.phone}</span>}
               </span>
               <span
                 className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium ${
@@ -264,6 +342,8 @@ export function ProfilePage() {
             </p>
           </div>
         </div>
+
+        <MyPhone />
 
         <p className="mt-4 text-[13px] leading-relaxed text-[var(--fg-soft)]">
           {isOwner

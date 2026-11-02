@@ -25,6 +25,7 @@ interface TgWebApp {
   openLink: (url: string) => void
   openTelegramLink: (url: string) => void
   addToHomeScreen?: () => void
+  requestContact?: (callback: (shared: boolean) => void) => void
   checkHomeScreenStatus?: (callback: (status: HomeScreenStatus) => void) => void
   onEvent: (event: string, callback: () => void) => void
   offEvent: (event: string, callback: () => void) => void
@@ -173,6 +174,16 @@ export function useTelegramOverlay(open: boolean, onClose: () => void) {
 }
 
 /** Выбор чата для пересылки ссылки. false — мы не в Mini App */
+/**
+ * Спрашивает согласие поделиться номером. true — согласился, и Telegram отправил
+ * контакт боту. Сам номер отсюда не берём: сохраняет его вебхук (функция telegram-bot).
+ */
+export function requestPhone(): Promise<boolean> {
+  const app = miniApp()
+  if (!app?.isVersionAtLeast('6.9') || !app.requestContact) return Promise.resolve(false)
+  return new Promise((resolve) => app.requestContact?.(resolve))
+}
+
 export function shareViaTelegram(url: string, text: string) {
   const app = miniApp()
   if (!app) return false

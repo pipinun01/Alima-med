@@ -77,15 +77,19 @@ alter table editor_invites enable row level security;
 
 -- ─── Кто этот аккаунт в Telegram ───────────────────────────────────────────
 --  Заполняет только функция telegram-auth (ключ service_role обходит RLS).
---  Политик нет: имена отдаёт владельцам list_people.
+--  Политик нет: имена и номера отдаёт владельцам list_people.
+--  phone заполняет только функция telegram-bot, когда человек поделился номером сам.
 create table if not exists telegram_accounts (
   telegram_id bigint primary key,
   user_id     uuid not null unique references auth.users (id) on delete cascade,
   first_name  text,
   last_name   text,
   username    text,
+  phone       text,
   updated_at  timestamptz not null default now()
 );
+
+alter table telegram_accounts add column if not exists phone text;
 
 alter table telegram_accounts enable row level security;
 
@@ -182,7 +186,7 @@ $$;
 drop function if exists list_editors();
 drop function if exists list_people();
 create function list_people()
-returns table (user_id uuid, name text, username text, role text, added_at timestamptz)
+returns table (user_id uuid, name text, username text, phone text, role text, added_at timestamptz)
 language sql
 stable
 security definer
@@ -195,6 +199,7 @@ as $$
            u.email::text
          ),
          t.username,
+         t.phone,
          coalesce(e.role, 'reader'),
          coalesce(e.added_at, t.updated_at)
     from auth.users u
@@ -204,6 +209,18 @@ as $$
      and (e.user_id is not null or t.user_id is not null)
    order by case coalesce(e.role, 'reader') when 'owner' then 0 when 'editor' then 1 else 2 end,
             coalesce(e.added_at, t.updated_at) desc;
+$$;
+
+--  Свой номер: таблица закрыта, а профилю надо знать, спрашивать ли его.
+--  Это RPC, то есть POST: номер не осядет в офлайн-кэше service worker.
+create or replace function my_phone()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select phone from telegram_accounts where user_id = auth.uid();
 $$;
 
 --  Сделать читателя редактором. Владельца это не понизит: строка уже есть.
@@ -249,11 +266,13 @@ $$;
 revoke all on function claim_editor(text)         from public, anon;
 revoke all on function create_editor_invite()     from public, anon;
 revoke all on function list_people()              from public, anon;
+revoke all on function my_phone()                 from public, anon;
 revoke all on function make_editor(uuid)           from public, anon;
 revoke all on function remove_editor(uuid)        from public, anon;
 grant execute on function claim_editor(text)      to authenticated;
 grant execute on function create_editor_invite()  to authenticated;
 grant execute on function list_people()           to authenticated;
+grant execute on function my_phone()              to authenticated;
 grant execute on function make_editor(uuid)       to authenticated;
 grant execute on function remove_editor(uuid)     to authenticated;
 

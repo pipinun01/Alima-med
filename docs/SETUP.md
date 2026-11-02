@@ -150,6 +150,14 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxxxxxxxxx
 supabase login
 supabase functions deploy telegram-auth --no-verify-jwt --project-ref <ref>
 supabase secrets set --project-ref <ref> TELEGRAM_BOT_TOKEN=<токен бота>
+
+# Вебхук бота: сохраняет номер, которым человек поделился в профиле
+SECRET=$(openssl rand -hex 32)
+supabase functions deploy telegram-bot --no-verify-jwt --project-ref <ref>
+supabase secrets set --project-ref <ref> TELEGRAM_WEBHOOK_SECRET=$SECRET
+curl -s "https://api.telegram.org/bot<токен бота>/setWebhook" \
+  -d url=https://<ref>.supabase.co/functions/v1/telegram-bot \
+  -d secret_token=$SECRET -d 'allowed_updates=["message"]'
 ```
 
 Без `--no-verify-jwt` шлюз отклонит вход: человек приходит ещё без сессии.
