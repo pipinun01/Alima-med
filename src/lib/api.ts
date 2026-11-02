@@ -376,9 +376,8 @@ export async function uploadImage(file: File): Promise<UploadedImage> {
 }
 
 /**
- * Код приглашения. Совпал с тем, что лежит в базе, — аккаунт добавляется в
- * editors и сразу получает права. Возвращает false, если код неверный;
- * бросает, если код в базе не задан или не выполнен вход.
+ * Код из ссылки-приглашения. Подошёл — аккаунт добавляется в editors и сразу
+ * получает права. Возвращает false, если код неверный, использован или устарел.
  */
 export async function claimEditor(code: string): Promise<boolean> {
   const granted = await write<boolean>(() => supabase.rpc('claim_editor', { p_code: code }))
@@ -387,12 +386,38 @@ export async function claimEditor(code: string): Promise<boolean> {
   return Boolean(granted)
 }
 
-export async function checkIsEditor(userId: string) {
+export type EditorRole = 'owner' | 'editor'
+
+export interface EditorMember {
+  user_id: string
+  email: string
+  role: EditorRole
+  added_at: string
+}
+
+/**
+ * select('*'), а не select('role'): до обновления схемы колонки ещё нет, и такой
+ * запрос упал бы. Редактор тогда просто останется редактором, без прав владельца.
+ */
+export async function fetchEditorRole(userId: string): Promise<EditorRole | null> {
   const { data, error } = await supabase
     .from('editors')
-    .select('user_id')
+    .select('*')
     .eq('user_id', userId)
     .maybeSingle()
-  if (error) return false
-  return Boolean(data)
+  if (error || !data) return null
+  return (data as { role?: string }).role === 'owner' ? 'owner' : 'editor'
+}
+
+export async function listEditors(): Promise<EditorMember[]> {
+  return (await write<EditorMember[]>(() => supabase.rpc('list_editors'))) ?? []
+}
+
+/** Новая ссылка на одного человека. Повтор при обрыве связи оставит лишь неиспользованный код */
+export async function createEditorInvite(): Promise<string> {
+  return write<string>(() => supabase.rpc('create_editor_invite'))
+}
+
+export async function removeEditor(userId: string): Promise<void> {
+  await write<boolean>(() => supabase.rpc('remove_editor', { p_user_id: userId }))
 }

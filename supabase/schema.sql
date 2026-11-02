@@ -26,18 +26,54 @@ as $$
   select exists (select 1 from editors where user_id = auth.uid());
 $$;
 
--- ─── Код-приглашение: аккаунт сам получает права редактора ─────────────────
+--  Роль: owner приглашает и убирает людей, editor только правит конспекты.
+--  Колонка появляется один раз, и те, кто уже был редактором, становятся
+--  владельцами. Только при её создании: иначе повторный запуск схемы повысил бы
+--  всех, кого пригласили позже.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'editors' and column_name = 'role'
+  ) then
+    alter table editors
+      add column role text not null default 'editor' check (role in ('owner', 'editor'));
+    update editors set role = 'owner';
+  end if;
+end;
+$$;
+
+create or replace function is_owner()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (select 1 from editors where user_id = auth.uid() and role = 'owner');
+$$;
+
+-- ─── Приглашения: ссылка на одного человека ────────────────────────────────
 --  Читать базу может кто угодно без входа, поэтому открытая регистрация
---  сделала бы редактором любого прохожего. Вместо этого при регистрации
---  спрашивается секретная фраза: совпала — аккаунт добавляется в editors,
---  не совпала — остаётся обычным читателем.
---
---  Задать фразу (и потом сменить) — отсюда же, из SQL Editor:
+--  сделала бы редактором любого прохожего. Владелец создаёт в профиле ссылку:
+--  она срабатывает один раз и живёт 7 дней. Общая фраза на всех не годится: кого
+--  убрали, тот ввёл бы её снова.
+create table if not exists editor_invites (
+  code       text primary key default replace(gen_random_uuid()::text, '-', ''),
+  created_by uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '7 days',
+  used_by    uuid references auth.users (id) on delete set null,
+  used_at    timestamptz
+);
+
+--  RLS включён, а политик нет ни одной: через API коды не прочитать даже
+--  редактору. С ними работают только функции ниже.
+alter table editor_invites enable row level security;
+
+--  Фраза для самого первого запуска: на пустой базе ещё некому создавать ссылки.
+--  Срабатывает, только пока нет ни одного владельца, и делает владельцем:
 --    update editor_invite set code = 'длинная-фраза-которую-легко-продиктовать';
---
---  Когда приглашение больше не нужно, код стирается, и claim_editor
---  перестаёт срабатывать вовсе:
---    update editor_invite set code = null;
 create table if not exists editor_invite (
   id         int primary key default 1 check (id = 1),
   code       text,
@@ -46,13 +82,11 @@ create table if not exists editor_invite (
 
 insert into editor_invite (id) values (1) on conflict (id) do nothing;
 
---  RLS включён, а политик нет ни одной: через API строку не прочитать и не
---  изменить даже редактору. Код видит только claim_editor — она security
---  definer и потому RLS обходит.
 alter table editor_invite enable row level security;
 
---  Возвращает true — код подошёл, права выданы; false — код неверный.
---  Бросает ошибку, если не выполнен вход или код в базе не задан.
+--  Возвращает true — права есть; false — код неверный, использован или устарел.
+--  Уже редактору код не нужен, и приглашение при этом не тратится. Повтор запроса
+--  после обрыва связи тоже вернёт true: write() в api.ts повторяет запросы.
 drop function if exists claim_editor(text);
 create function claim_editor(p_code text)
 returns boolean
@@ -61,30 +95,98 @@ security definer
 set search_path = public
 as $$
 declare
+  given    text := btrim(coalesce(p_code, ''));
   expected text;
 begin
   if auth.uid() is null then
     raise exception 'Сначала нужно войти в аккаунт';
   end if;
 
-  select nullif(btrim(code), '') into expected from editor_invite where id = 1;
-  if expected is null then
-    raise exception 'Код приглашения не задан в базе — задайте его в SQL Editor';
+  if exists (select 1 from editors where user_id = auth.uid()) then
+    return true;
   end if;
 
-  if btrim(coalesce(p_code, '')) <> expected then
-    return false;
+  update editor_invites
+     set used_by = auth.uid(), used_at = now()
+   where code = given and used_at is null and expires_at > now();
+  if found then
+    insert into editors (user_id, role) values (auth.uid(), 'editor')
+    on conflict (user_id) do nothing;
+    return true;
   end if;
 
-  insert into editors (user_id) values (auth.uid())
-  on conflict (user_id) do nothing;
-  return true;
+  if not exists (select 1 from editors where role = 'owner') then
+    select nullif(btrim(code), '') into expected from editor_invite where id = 1;
+    if expected is not null and given = expected then
+      insert into editors (user_id, role) values (auth.uid(), 'owner')
+      on conflict (user_id) do nothing;
+      return true;
+    end if;
+  end if;
+
+  return false;
 end;
 $$;
 
---  Звать её может только вошедший: анониму выдавать нечего.
-revoke all on function claim_editor(text) from public;
-grant execute on function claim_editor(text) to authenticated;
+create or replace function create_editor_invite()
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_code text;
+begin
+  if not is_owner() then
+    raise exception 'Приглашать людей могут только владельцы';
+  end if;
+  insert into editor_invites (created_by) values (auth.uid()) returning code into new_code;
+  return new_code;
+end;
+$$;
+
+--  Почты лежат в auth.users, клиенту туда хода нет. Не владельцу вернётся пустой список.
+create or replace function list_editors()
+returns table (user_id uuid, email text, role text, added_at timestamptz)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select e.user_id, u.email::text, e.role, e.added_at
+    from editors e
+    join auth.users u on u.id = e.user_id
+   where is_owner()
+   order by e.role desc, e.added_at;
+$$;
+
+--  Владельца так не убрать, ни чужого, ни себя: база не останется без хозяина.
+--  Права пропадают сразу: политики спрашивают is_editor() при каждом запросе.
+create or replace function remove_editor(p_user_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_owner() then
+    raise exception 'Убирать людей могут только владельцы';
+  end if;
+  delete from editors where user_id = p_user_id and role = 'editor';
+  return found;
+end;
+$$;
+
+--  Звать их может только вошедший. Supabase выдаёт права на новые функции ещё и
+--  роли anon отдельно, поэтому одного revoke from public мало.
+revoke all on function claim_editor(text)         from public, anon;
+revoke all on function create_editor_invite()     from public, anon;
+revoke all on function list_editors()             from public, anon;
+revoke all on function remove_editor(uuid)        from public, anon;
+grant execute on function claim_editor(text)      to authenticated;
+grant execute on function create_editor_invite()  to authenticated;
+grant execute on function list_editors()          to authenticated;
+grant execute on function remove_editor(uuid)     to authenticated;
 
 -- ─── Дерево: глава → тема → ветка → карточка ───────────────────────────────
 --  Родитель хранится ссылкой, поэтому глубина технически не ограничена:

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { KeyRound, MailQuestion, UserPlus } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { claimEditor, describeAuthError } from '@/lib/api'
@@ -12,9 +12,9 @@ import { Button, ErrorNote, Field, InfoNote, Spinner } from '@/components/ui'
  * (`ProfilePage`), сюда вошедшего перенаправляем.
  *
  * Права не выдаются просто за регистрацию: читать базу может кто угодно, и
- * иначе редактором стал бы любой, кто нашёл адрес. Секретную фразу владелец
- * задаёт один раз в базе (таблица editor_invite), а проверяет её функция
- * claim_editor — см. supabase/schema.sql.
+ * иначе редактором стал бы любой, кто нашёл адрес. Права даёт ссылка-приглашение
+ * от владельца (/login?invite=код). Здесь код не тратится: после входа ссылка
+ * ведёт в профиль, и уже он меняет код на права — см. InviteForm в ProfilePage.
  */
 
 type Mode = 'in' | 'up' | 'reset'
@@ -29,7 +29,7 @@ const HEAD: Record<Mode, { icon: React.ReactNode; title: string; text: string; s
   up: {
     icon: <UserPlus size={22} />,
     title: 'Новый аккаунт',
-    text: 'Придумайте почту и пароль — их будете знать только вы. Код приглашения сразу даёт право дополнять базу.',
+    text: 'Придумайте почту и пароль — их будете знать только вы. Код из приглашения сразу даёт право дополнять базу.',
     submit: 'Зарегистрироваться',
   },
   reset: {
@@ -42,7 +42,11 @@ const HEAD: Record<Mode, { icon: React.ReactNode; title: string; text: string; s
 
 export function LoginPage() {
   const { session, loading, signIn, signUp, resetPassword, refreshEditor } = useAuth()
-  const [mode, setMode] = useState<Mode>('in')
+  const [params] = useSearchParams()
+  const linkCode = params.get('invite')?.trim() ?? ''
+  // Куда идти после входа. По приглашению — в профиль: там код меняется на права
+  const afterAuth = linkCode ? `/profile?invite=${encodeURIComponent(linkCode)}` : '/'
+  const [mode, setMode] = useState<Mode>(linkCode ? 'up' : 'in')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [invite, setInvite] = useState('')
@@ -55,7 +59,7 @@ export function LoginPage() {
   // ждут конспекты. Пока сессия читается из памяти, ничего не рисуем, иначе
   // форма мигнёт перед переходом
   if (loading) return null
-  if (session) return <Navigate to="/" replace />
+  if (session) return <Navigate to={afterAuth} replace />
 
   const switchMode = (next: Mode) => {
     setMode(next)
@@ -65,7 +69,7 @@ export function LoginPage() {
 
   const submitIn = async () => {
     await signIn(email.trim(), password)
-    navigate('/')
+    navigate(afterAuth, { replace: Boolean(linkCode) })
   }
 
   /**
@@ -74,11 +78,13 @@ export function LoginPage() {
    * подтвердить письмо и войти, а код вводится уже в профиле, после входа.
    */
   const submitUp = async () => {
-    const signedIn = await signUp(email.trim(), password)
+    const signedIn = await signUp(email.trim(), password, linkCode ? `/login?invite=${encodeURIComponent(linkCode)}` : undefined)
     if (!signedIn) {
       setNotice(
-        'Аккаунт создан. Откройте ссылку из письма, чтобы подтвердить почту, потом войдите — ' +
-          'код приглашения можно будет ввести в профиле.',
+        linkCode
+          ? 'Аккаунт создан. Откройте ссылку из письма, чтобы подтвердить почту: она вернёт сюда, и права появятся сами.'
+          : 'Аккаунт создан. Откройте ссылку из письма, чтобы подтвердить почту, потом войдите — ' +
+              'код приглашения можно будет ввести в профиле.',
       )
       setMode('in')
       setPassword('')
@@ -94,12 +100,12 @@ export function LoginPage() {
     if (invite.trim()) {
       navigate('/profile', {
         replace: true,
-        state: { notice: 'Аккаунт создан, но код не подошёл. Проверьте фразу и попробуйте ещё раз ниже.' },
+        state: { notice: 'Аккаунт создан, но код не подошёл. Проверьте его и попробуйте ещё раз ниже.' },
       })
       return
     }
-    // Без кода — просто читатель, идём к конспектам
-    navigate('/', { replace: true })
+    // Без кода — просто читатель, идём к конспектам. По ссылке — в профиль за правами
+    navigate(afterAuth, { replace: true })
   }
 
   const submitReset = async () => {
@@ -167,6 +173,11 @@ export function LoginPage() {
 
         <h1 className="font-display text-[20px] font-bold tracking-tight">{head.title}</h1>
         <p className="mt-1.5 text-[14px] leading-relaxed text-[var(--fg-soft)]">{head.text}</p>
+        {linkCode && !isReset && (
+          <InfoNote className="mt-3">
+            Вас пригласили дополнять базу. Войдите или зарегистрируйтесь — права появятся сразу.
+          </InfoNote>
+        )}
 
         <div className="mt-6 space-y-3">
           <Field
@@ -189,12 +200,12 @@ export function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
             />
           )}
-          {isUp && (
+          {isUp && !linkCode && (
             <Field
               label="Код приглашения"
               autoComplete="off"
               value={invite}
-              placeholder="Секретная фраза от владельца базы"
+              placeholder="Из приглашения от владельца базы"
               hint="Без кода аккаунт создастся, но останется читательским — код можно ввести и позже"
               onChange={(e) => setInvite(e.target.value)}
             />

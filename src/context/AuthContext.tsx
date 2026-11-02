@@ -1,12 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase, isConfigured } from '@/lib/supabase'
-import { checkIsEditor } from '@/lib/api'
+import { fetchEditorRole, type EditorRole } from '@/lib/api'
 import { onDataUpdated } from '@/lib/sw-client'
 
 interface AuthCtx {
   session: Session | null
   isEditor: boolean
+  /** Владелец: ещё и приглашает людей и убирает их */
+  isOwner: boolean
   loading: boolean
   /**
    * Человек пришёл по ссылке «восстановить пароль» из письма: сессия уже
@@ -17,9 +19,10 @@ interface AuthCtx {
   signIn: (email: string, password: string) => Promise<void>
   /**
    * Регистрация. true — вход уже выполнен; false — проект Supabase требует
-   * подтвердить почту письмом, и сессии пока нет.
+   * подтвердить почту письмом, и сессии пока нет. `redirectPath` — куда вернёт
+   * ссылка из этого письма.
    */
-  signUp: (email: string, password: string) => Promise<boolean>
+  signUp: (email: string, password: string, redirectPath?: string) => Promise<boolean>
   signOut: () => Promise<void>
   /** Отозвать сессии на всех устройствах, включая это */
   signOutEverywhere: () => Promise<void>
@@ -44,7 +47,7 @@ const Ctx = createContext<AuthCtx | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
-  const [isEditor, setIsEditor] = useState(false)
+  const [role, setRole] = useState<EditorRole | null>(null)
   const [loading, setLoading] = useState(isConfigured)
   const [recovery, setRecovery] = useState(false)
 
@@ -74,11 +77,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let active = true
     if (!userId) {
-      setIsEditor(false)
+      setRole(null)
       return
     }
-    checkIsEditor(userId).then((ok) => {
-      if (active) setIsEditor(ok)
+    fetchEditorRole(userId).then((next) => {
+      if (active) setRole(next)
     })
     return () => {
       active = false
@@ -87,10 +90,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshEditor = useCallback(async () => {
     if (!userId) {
-      setIsEditor(false)
+      setRole(null)
       return
     }
-    setIsEditor(await checkIsEditor(userId))
+    setRole(await fetchEditorRole(userId))
   }, [userId])
 
   /**
@@ -109,7 +112,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AuthCtx>(
     () => ({
       session,
-      isEditor,
+      isEditor: role !== null,
+      isOwner: role === 'owner',
       loading,
       recovery,
       refreshEditor,
@@ -117,8 +121,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
       },
-      signUp: async (email, password) => {
-        const { data, error } = await supabase.auth.signUp({ email, password })
+      signUp: async (email, password, redirectPath) => {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: redirectPath ? { emailRedirectTo: `${window.location.origin}${redirectPath}` } : undefined,
+        })
         if (error) throw error
         return Boolean(data.session)
       },
@@ -151,7 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) throw error
       },
     }),
-    [session, isEditor, loading, recovery, refreshEditor],
+    [session, role, loading, recovery, refreshEditor],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

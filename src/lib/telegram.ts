@@ -160,6 +160,16 @@ export function useTelegramOverlay(open: boolean, onClose: () => void) {
   }, [open])
 }
 
+/** Выбор чата для пересылки ссылки. false — мы не в Mini App */
+export function shareViaTelegram(url: string, text: string) {
+  const app = miniApp()
+  if (!app) return false
+  app.openTelegramLink(
+    `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`,
+  )
+  return true
+}
+
 /** Telegram спросит подтверждение при закрытии — замена beforeunload, которого в Mini App нет */
 export function guardTelegramClose() {
   const app = miniApp()
